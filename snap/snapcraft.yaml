@@ -1,0 +1,71 @@
+name: linux-game-bar
+base: core24
+version: '1.0.0'
+summary: Xbox Game Bar-inspired gaming overlay & widget utility for Linux
+title: Linux Game Bar
+description: |
+  Linux Game Bar is an Xbox Game Bar-inspired in-game overlay and widget
+  utility built for Linux and Ubuntu GNOME desktops.
+
+  Key Features:
+  - Global Super + G overlay summonable anytime without quitting games
+  - Real-time Performance Monitor tracking CPU, GPU, RAM, VRAM, and FPS
+  - Fluent 2 Audio Mixer with per-app volume sliders and device selection
+  - Screen Capture & Gallery with instant screenshot preview and copy
+  - Embedded Game Browser with dedicated private profile and Google login support
+  - Auto-Typer utility for custom hotkey expansion and automated text injection
+  - 1-Click Widget Store & Extensible Python SDK to install community widgets from GitHub or ZIP archives
+
+grade: stable
+confinement: classic
+license: MIT
+icon: assets/icons/app_icon.png
+website: https://github.com/goutham-11-16/Linux_game_bar
+contact: https://github.com/goutham-11-16/Linux_game_bar/issues
+
+apps:
+  linux-game-bar:
+    command: bin/linux-game-bar
+    desktop: usr/share/applications/linux-game-bar.desktop
+    environment:
+      PYTHONPATH: $SNAP/usr/lib/python3/dist-packages:$SNAP/lib/python3.12/site-packages:$SNAP/src
+      PATH: $SNAP/bin:$SNAP/usr/bin:$PATH
+      LD_LIBRARY_PATH: $SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET:$LD_LIBRARY_PATH
+      QT_QPA_PLATFORM: wayland;xcb
+
+parts:
+  desktop-entry:
+    plugin: dump
+    source: packaging/
+    organize:
+      linux-game-bar.desktop: usr/share/applications/linux-game-bar.desktop
+    stage:
+      - usr/share/applications/linux-game-bar.desktop
+
+  linux-game-bar:
+    plugin: python
+    source: .
+    stage-packages:
+      - python3-pyside6.qtcore
+      - python3-pyside6.qtgui
+      - python3-pyside6.qtwidgets
+      - python3-pyside6.qtwebenginecore
+      - python3-pyside6.qtwebenginewidgets
+      - python3-pyside6.qtsvg
+      - libgl1
+      - libxkbcommon0
+      - libegl1
+      - libpulse0
+      - libasound2t64
+      - ydotool
+      - xdotool
+      - git
+    python-requirements:
+      - requirements.txt
+    stage:
+      - bin/
+      - lib/
+      - usr/
+      - src/
+      - assets/
+      - config/
