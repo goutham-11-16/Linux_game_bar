@@ -33,6 +33,8 @@ from linux_game_bar.core.autotyper_engine import (
     Snippet,
     TypingMode,
 )
+from linux_game_bar.core.hotkey_service import get_hotkey_service
+from linux_game_bar.widgets.hotkey_capture import HotKeyCaptureBox
 
 logger = logging.getLogger("linux_game_bar.widgets.autotyper")
 
@@ -176,23 +178,12 @@ class AutoTyperWidget(WidgetBase):
         name_col.addWidget(self.input_name)
         name_hot_row.addLayout(name_col, 1)
 
-        # Hotkey field
+        # Hotkey field (interactive key press capture matching Windows WidgetView)
         hot_col = QVBoxLayout()
         hot_col.setSpacing(2)
         lbl_hot = QLabel("Hotkey Trigger")
         lbl_hot.setStyleSheet("font-size: 11px; color: #AAAAAA; background: transparent;")
-        self.input_hotkey = QLineEdit()
-        self.input_hotkey.setPlaceholderText("e.g. F8 / Super+T")
-        self.input_hotkey.setStyleSheet(f"""
-            QLineEdit {{
-                background-color: {Theme.BG_CARD};
-                border: 1px solid {Theme.BORDER_SUBTLE};
-                border-radius: 4px;
-                padding: 4px 6px;
-                color: #FFFFFF;
-                font-size: 12px;
-            }}
-        """)
+        self.input_hotkey = HotKeyCaptureBox()
         hot_col.addWidget(lbl_hot)
         hot_col.addWidget(self.input_hotkey)
         name_hot_row.addLayout(hot_col, 1)
@@ -473,6 +464,7 @@ class AutoTyperWidget(WidgetBase):
                 self.snippets = []
 
         self._refresh_combo()
+        self._register_global_hotkeys()
 
     def _save_snippets_to_file(self) -> None:
         try:
@@ -480,6 +472,41 @@ class AutoTyperWidget(WidgetBase):
                 json.dump([s.to_dict() for s in self.snippets], f, indent=2)
         except Exception as ex:
             logger.error("Failed to save snippets: %s", ex)
+        self._register_global_hotkeys()
+
+    def _register_global_hotkeys(self) -> None:
+        """Register all snippets with assigned hotkeys in GlobalHotKeyService."""
+        hotkey_svc = get_hotkey_service()
+        hotkey_svc.unregister_all()
+
+        for snippet in self.snippets:
+            if not snippet.hotkey or snippet.hotkey.strip().lower() in ("none", ""):
+                continue
+
+            # Capture snippet in closure
+            def make_trigger(s=snippet):
+                logger.info(f"[AutoTyperWidget] Hotkey triggered for snippet '{s.name}'")
+                self._trigger_snippet_by_hotkey(s)
+
+            hotkey_svc.register(snippet.hotkey, make_trigger)
+
+    def _trigger_snippet_by_hotkey(self, snippet: Snippet) -> None:
+        """Executed when global hotkey fires anywhere in Linux OS."""
+        if self._worker and self._worker.isRunning():
+            return
+
+        self._worker = AutoTyperWorker(
+            text=snippet.text,
+            mode=snippet.mode,
+            delay_char=snippet.delay_per_char,
+            delay_word=snippet.delay_per_word,
+            countdown=0,  # Hotkey triggers immediately
+            parent=self,
+        )
+        self._worker.status_changed.connect(self.lbl_progress_desc.setText)
+        self._worker.progress_updated.connect(self._on_progress)
+        self._worker.finished_operation.connect(self._on_worker_finished)
+        self._worker.start()
 
     def _refresh_combo(self, select_id: Optional[str] = None) -> None:
         self.combo_snippets.blockSignals(True)

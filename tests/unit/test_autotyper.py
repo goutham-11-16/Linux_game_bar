@@ -94,3 +94,34 @@ def test_autotyper_widget_ui(qapp, tmp_path):
     assert widget.current_snippet is not None
     assert widget.current_snippet.name == "Gaming GG"
     assert widget.current_snippet.text == "Well played!"
+
+def test_hotkey_capture_box(qapp):
+    from PySide6.QtGui import QKeyEvent
+    from PySide6.QtCore import Qt
+    from linux_game_bar.widgets.hotkey_capture import HotKeyCaptureBox
+
+    box = HotKeyCaptureBox()
+    # Press F8
+    ev_f8 = QKeyEvent(QKeyEvent.KeyPress, Qt.Key_F8, Qt.NoModifier)
+    box.keyPressEvent(ev_f8)
+    assert box.text() == "F8"
+
+    # Press Ctrl + Alt + T
+    ev_combo = QKeyEvent(QKeyEvent.KeyPress, Qt.Key_T, Qt.ControlModifier | Qt.AltModifier)
+    box.keyPressEvent(ev_combo)
+    assert "Control" in box.text()
+    assert "Alt" in box.text()
+    assert "T" in box.text()
+
+    # Clear with Backspace
+    ev_bs = QKeyEvent(QKeyEvent.KeyPress, Qt.Key_Backspace, Qt.NoModifier)
+    box.keyPressEvent(ev_bs)
+    assert box.text() == "None"
+
+
+def test_hotkey_service_normalization():
+    from linux_game_bar.core.hotkey_service import GlobalHotKeyService
+
+    assert GlobalHotKeyService.normalize_hotkey("F8") == "f8"
+    assert GlobalHotKeyService.normalize_hotkey("Control, Shift + F8") == "ctrl+shift+f8"
+    assert GlobalHotKeyService.normalize_hotkey("Windows, Alt + D1") == "alt+super+1"
