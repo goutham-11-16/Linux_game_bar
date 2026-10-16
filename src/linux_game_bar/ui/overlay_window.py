@@ -20,6 +20,7 @@ from linux_game_bar.widgets.launcher import LauncherWidget
 from linux_game_bar.widgets.battery import BatteryWidget
 from linux_game_bar.widgets.notes import NotesWidget
 from linux_game_bar.widgets.timer import TimerWidget
+from linux_game_bar.widgets.browser import BrowserWidget
 from linux_game_bar.sdk.loader import PluginLoader
 
 
@@ -82,10 +83,12 @@ class OverlayWindow(QWidget):
         self.widget_battery = BatteryWidget(self)
         self.widget_notes = NotesWidget(self)
         self.widget_timer = TimerWidget(self)
+        self.widget_browser = BrowserWidget(self.config_manager, self)
 
         self._register_widget("performance", self.widget_perf)
         self._register_widget("audio", self.widget_audio)
         self._register_widget("capture", self.widget_capture)
+        self._register_widget("browser", self.widget_browser)
         self._register_widget("launcher", self.widget_launcher)
         self._register_widget("battery", self.widget_battery)
         self._register_widget("notes", self.widget_notes)
@@ -266,6 +269,7 @@ class OverlayWindow(QWidget):
             "performance": {"x": 40, "y": 90, "width": 340, "height": 480},
             "audio": {"x": 400, "y": 90, "width": 360, "height": 420},
             "capture": {"x": 780, "y": 90, "width": 340, "height": 390},
+            "browser": {"x": 420, "y": 90, "width": 400, "height": 580},
             "launcher": {"x": 400, "y": 90, "width": 460, "height": 500},
             "battery": {"x": 1140, "y": 90, "width": 320, "height": 360},
             "notes": {"x": 780, "y": 90, "width": 380, "height": 480},

@@ -275,6 +275,7 @@ class DashboardBar(QFrame):
             ("performance", "performance", "Performance (CPU, RAM, GPU)"),
             ("audio", "audio", "Audio Mixer"),
             ("capture", "camera", "Capture (Screenshot & Recording)"),
+            ("browser", "globe", "Web Browser"),
             ("launcher", "launcher", "Game & App Launcher"),
             ("battery", "performance", "Battery & Thermals"),
             ("notes", "notes", "Notes"),
