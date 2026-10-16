@@ -276,6 +276,7 @@ class DashboardBar(QFrame):
             ("audio", "audio", "Audio Mixer"),
             ("capture", "camera", "Capture (Screenshot & Recording)"),
             ("browser", "globe", "Web Browser"),
+            ("autotyper", "keyboard", "Auto Typer (Macros & Keystrokes)"),
             ("launcher", "launcher", "Game & App Launcher"),
             ("battery", "performance", "Battery & Thermals"),
             ("notes", "notes", "Notes"),

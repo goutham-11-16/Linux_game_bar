@@ -21,6 +21,7 @@ from linux_game_bar.widgets.battery import BatteryWidget
 from linux_game_bar.widgets.notes import NotesWidget
 from linux_game_bar.widgets.timer import TimerWidget
 from linux_game_bar.widgets.browser import BrowserWidget
+from linux_game_bar.widgets.autotyper import AutoTyperWidget
 from linux_game_bar.sdk.loader import PluginLoader
 
 
@@ -66,7 +67,7 @@ class OverlayWindow(QWidget):
         self.dashboard_bar.quit_clicked.connect(self.hide_overlay)
 
         # Center top bar
-        bar_w = 580
+        bar_w = 620
         bar_x = (self.width() - bar_w) // 2
         self.dashboard_bar.setGeometry(bar_x, 15, bar_w, 44)
 
@@ -79,11 +80,13 @@ class OverlayWindow(QWidget):
         self.widget_notes = NotesWidget(self)
         self.widget_timer = TimerWidget(self)
         self.widget_browser = BrowserWidget(self.config_manager, self)
+        self.widget_autotyper = AutoTyperWidget(self.config_manager, self)
 
         self._register_widget("performance", self.widget_perf)
         self._register_widget("audio", self.widget_audio)
         self._register_widget("capture", self.widget_capture)
         self._register_widget("browser", self.widget_browser)
+        self._register_widget("autotyper", self.widget_autotyper)
         self._register_widget("launcher", self.widget_launcher)
         self._register_widget("battery", self.widget_battery)
         self._register_widget("notes", self.widget_notes)
