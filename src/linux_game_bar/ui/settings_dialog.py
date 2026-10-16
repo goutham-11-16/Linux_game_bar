@@ -16,6 +16,8 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QMessageBox,
     QFrame,
+    QScrollArea,
+    QWidget,
 )
 
 from linux_game_bar.ui.theme import Theme
@@ -37,29 +39,73 @@ class SettingsDialog(QDialog):
         self.autostart_mgr = AutostartManager()
 
         self.setWindowTitle("Linux Game Bar Settings")
-        self.setFixedSize(500, 620)
+        self.setMinimumSize(540, 600)
+        self.resize(560, 680)
         self._init_ui()
 
     def _init_ui(self) -> None:
         self.setStyleSheet(f"""
             QDialog {{
-                background-color: #1a1a1e;
+                background-color: #1c1c20;
                 color: #ffffff;
+            }}
+            QScrollArea {{
+                background: transparent;
+                border: none;
+            }}
+            QScrollBar:vertical {{
+                background: transparent;
+                width: 6px;
+                margin: 0px;
+                border-radius: 3px;
+            }}
+            QScrollBar::handle:vertical {{
+                background: rgba(255, 255, 255, 0.18);
+                min-height: 24px;
+                border-radius: 3px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background: rgba(255, 255, 255, 0.32);
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0px;
             }}
         """)
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(14)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(20, 20, 20, 16)
+        main_layout.setSpacing(12)
 
-        # Title
-        lbl_title = QLabel("⚙️ Overlay Settings")
+        # Title with vector Fluent icon
+        title_row = QHBoxLayout()
+        title_row.setSpacing(10)
+        icon_lbl = QLabel()
+        from linux_game_bar.ui import icons
+        icon_lbl.setPixmap(icons.get_icon("settings", color="#FFFFFF", size=20).pixmap(20, 20))
+        title_row.addWidget(icon_lbl)
+
+        lbl_title = QLabel("Settings")
         lbl_title.setStyleSheet("font-size: 18px; font-weight: 700; color: #ffffff;")
-        layout.addWidget(lbl_title)
+        title_row.addWidget(lbl_title)
+        title_row.addStretch()
+        main_layout.addLayout(title_row)
+
+        # Scroll area for cards
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.NoFrame)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 4, 8, 4)
+        layout.setSpacing(14)
 
         # 1. Global Shortcut Section
         card_hotkey = QFrame()
-        card_hotkey.setStyleSheet(f"background-color: {Theme.BG_CARD}; border-radius: 8px; padding: 10px;")
+        card_hotkey.setStyleSheet(f"background-color: {Theme.BG_CARD}; border-radius: 8px; padding: 12px;")
         vbox_hk = QVBoxLayout(card_hotkey)
         vbox_hk.setSpacing(6)
 
@@ -72,13 +118,14 @@ class SettingsDialog(QDialog):
         vbox_hk.addWidget(self.input_hotkey)
 
         lbl_hk_hint = QLabel("Uses GNOME custom keybinding. Default is Super + G.")
+        lbl_hk_hint.setWordWrap(True)
         lbl_hk_hint.setStyleSheet("font-size: 11px; color: #A0A0A5;")
         vbox_hk.addWidget(lbl_hk_hint)
         layout.addWidget(card_hotkey)
 
         # 2. Startup & Autostart
         card_start = QFrame()
-        card_start.setStyleSheet(f"background-color: {Theme.BG_CARD}; border-radius: 8px; padding: 10px;")
+        card_start.setStyleSheet(f"background-color: {Theme.BG_CARD}; border-radius: 8px; padding: 12px;")
         vbox_st = QVBoxLayout(card_start)
         vbox_st.setSpacing(6)
 
@@ -89,7 +136,7 @@ class SettingsDialog(QDialog):
 
         # 3. Telemetry Refresh Rate
         card_perf = QFrame()
-        card_perf.setStyleSheet(f"background-color: {Theme.BG_CARD}; border-radius: 8px; padding: 10px;")
+        card_perf.setStyleSheet(f"background-color: {Theme.BG_CARD}; border-radius: 8px; padding: 12px;")
         vbox_pf = QVBoxLayout(card_perf)
         vbox_pf.setSpacing(6)
 
@@ -114,7 +161,7 @@ class SettingsDialog(QDialog):
 
         # 4. Captures Settings: Mode & Folder
         card_cap = QFrame()
-        card_cap.setStyleSheet(f"background-color: {Theme.BG_CARD}; border-radius: 8px; padding: 10px;")
+        card_cap.setStyleSheet(f"background-color: {Theme.BG_CARD}; border-radius: 8px; padding: 12px;")
         vbox_cp = QVBoxLayout(card_cap)
         vbox_cp.setSpacing(6)
 
@@ -134,6 +181,7 @@ class SettingsDialog(QDialog):
             "• Clean Background: Momentarily withdraws overlay so only the underlying game is captured.\n"
             "• Direct Capture: Captures instantly with zero blinking, capturing the screen as-is."
         )
+        lbl_mode_hint.setWordWrap(True)
         lbl_mode_hint.setStyleSheet("font-size: 11px; color: #A0A0A5; line-height: 1.4;")
         vbox_cp.addWidget(lbl_mode_hint)
 
@@ -159,21 +207,24 @@ class SettingsDialog(QDialog):
         layout.addLayout(row_reset)
 
         layout.addStretch()
+        scroll_area.setWidget(container)
+        main_layout.addWidget(scroll_area, 1)
 
-        # Dialog Buttons
+        # Dialog Buttons (Persistent bottom row)
         btn_box = QHBoxLayout()
+        btn_box.setContentsMargins(0, 8, 0, 0)
         btn_box.addStretch()
 
         btn_cancel = QPushButton("Cancel")
         btn_cancel.clicked.connect(self.reject)
         btn_box.addWidget(btn_cancel)
 
-        btn_save = QPushButton("Save & Apply")
+        btn_save = QPushButton("Save && Apply")
         btn_save.setProperty("class", "accent")
         btn_save.clicked.connect(self._save_and_apply)
         btn_box.addWidget(btn_save)
 
-        layout.addLayout(btn_box)
+        main_layout.addLayout(btn_box)
 
     def _browse_cap_dir(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Select Captures Directory", self.input_cap_dir.text())
