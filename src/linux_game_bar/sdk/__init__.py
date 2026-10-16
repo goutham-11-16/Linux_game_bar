@@ -1,11 +1,25 @@
 """
 Linux Game Bar Widget Software Development Kit (SDK).
 
-Allows third-party developers to easily build, package, and distribute custom
+1:1 Linux implementation of Microsoft.Gaming.XboxGameBar (NuGet 7.3.2607010).
+Allows third-party developers to build, package, and distribute custom
 widgets for the Linux Game Bar desktop overlay.
 """
 
+from linux_game_bar.sdk.xbox_game_bar import (
+    XboxGameBarWidget,
+    XboxGameBarWidgetActivatedEventArgs,
+    XboxGameBarWidgetCloseRequestedEventArgs,
+    XboxGameBarWidgetNotificationManager,
+    XboxGameBarWidgetRecordingManager,
+    XboxGameBarAppTarget,
+    XboxGameBarDisplayMode,
+    XboxGameBarWindowState,
+    XboxGameBarRecordingState,
+    XboxGameBarTheme,
+)
 from linux_game_bar.sdk.widget import (
+    XboxGameBarWidgetPlugin,
     GameBarWidgetPlugin,
     WidgetMetadata,
     WidgetContext,
@@ -16,6 +30,19 @@ from linux_game_bar.sdk.loader import (
 )
 
 __all__ = [
+    # 1:1 Microsoft.Gaming.XboxGameBar classes
+    "XboxGameBarWidget",
+    "XboxGameBarWidgetActivatedEventArgs",
+    "XboxGameBarWidgetCloseRequestedEventArgs",
+    "XboxGameBarWidgetNotificationManager",
+    "XboxGameBarWidgetRecordingManager",
+    "XboxGameBarAppTarget",
+    "XboxGameBarDisplayMode",
+    "XboxGameBarWindowState",
+    "XboxGameBarRecordingState",
+    "XboxGameBarTheme",
+    # Plugin developer classes
+    "XboxGameBarWidgetPlugin",
     "GameBarWidgetPlugin",
     "WidgetMetadata",
     "WidgetContext",

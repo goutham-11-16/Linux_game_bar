@@ -1,6 +1,7 @@
 """
 Plugin Loader and Registry for the Linux Game Bar Widget SDK.
-Discovers, validates, and loads third-party widget plugins.
+Discovers, validates, and loads third-party widget plugins implementing
+Microsoft.Gaming.XboxGameBar contracts.
 """
 
 import os
@@ -11,9 +12,20 @@ import importlib.util
 from pathlib import Path
 from typing import Dict, List, Optional, Type
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget, QVBoxLayout
 from linux_game_bar.ui.widget_base import WidgetBase
-from linux_game_bar.sdk.widget import GameBarWidgetPlugin, WidgetMetadata, WidgetContext
+from linux_game_bar.sdk.widget import (
+    XboxGameBarWidgetPlugin,
+    GameBarWidgetPlugin,
+    WidgetMetadata,
+    WidgetContext,
+)
+from linux_game_bar.sdk.xbox_game_bar import (
+    XboxGameBarWidget,
+    XboxGameBarWidgetActivatedEventArgs,
+    XboxGameBarDisplayMode,
+)
 
 logger = logging.getLogger("linux_game_bar.sdk.loader")
 
@@ -21,10 +33,10 @@ logger = logging.getLogger("linux_game_bar.sdk.loader")
 class PluginWidgetWrapper(WidgetBase):
     """
     Host container wrapping a third-party plugin inside the standard
-    Linux Game Bar floating window frame.
+    Linux Game Bar floating window frame, bridging the XboxGameBarWidget contract.
     """
 
-    def __init__(self, plugin: GameBarWidgetPlugin, parent: Optional[QWidget] = None):
+    def __init__(self, plugin: XboxGameBarWidgetPlugin, parent: Optional[QWidget] = None):
         meta = plugin.METADATA
         super().__init__(
             widget_id=meta.id,
@@ -33,27 +45,60 @@ class PluginWidgetWrapper(WidgetBase):
             parent=parent,
         )
         self.plugin = plugin
+
+        # Create the 1:1 XboxGameBarWidget instance
+        self.xbox_widget = XboxGameBarWidget(
+            widget_id=meta.id,
+            display_name=meta.title,
+            app_extension_id=meta.id,
+            host_wrapper=self,
+            parent=self,
+        )
+        self.plugin.widget = self.xbox_widget
+
+        # Forward bounds & constraints
         self.setMinimumSize(meta.min_width, meta.min_height)
         self.resize(meta.default_width, meta.default_height)
+        self.xbox_widget.min_window_size = self.minimumSize()
+        self.xbox_widget.max_window_size = self.maximumSize()
 
-        # Build plugin inner UI and add to content_layout
+        # Connect click-through mode
+        self.xbox_widget.click_through_enabled_changed.connect(self._on_click_through_changed)
+
+        # Build plugin inner UI via on_navigated_to
         try:
-            inner_ui = plugin.build_widget()
+            activation_args = XboxGameBarWidgetActivatedEventArgs(
+                widget=self.xbox_widget,
+                app_extension_id=meta.id,
+                is_launch=True,
+            )
+            inner_ui = plugin.on_navigated_to(activation_args)
             if inner_ui:
                 self.content_layout.addWidget(inner_ui)
         except Exception as e:
-            logger.error(f"Error building UI for plugin {meta.id}: {e}", exc_info=True)
+            logger.error(f"Error activating plugin {meta.id}: {e}", exc_info=True)
 
         self.pinned_changed.connect(self._on_pin_changed)
+        self.geometry_changed.connect(self._on_geom_changed)
+
+    def _on_click_through_changed(self, widget: Any, enabled: bool) -> None:
+        """When pinned and click-through enabled, clicks pass through to the game underneath."""
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, enabled)
 
     def _on_pin_changed(self, wid: str, pinned: bool) -> None:
+        self.xbox_widget._pinned = pinned
+        self.xbox_widget.pinned_changed.emit(self.xbox_widget, pinned)
         try:
             self.plugin.on_pinned_changed(pinned)
         except Exception as e:
             logger.debug(f"Plugin {self.plugin.METADATA.id} on_pinned_changed error: {e}")
 
+    def _on_geom_changed(self, wid: str, x: int, y: int, w: int, h: int) -> None:
+        self.xbox_widget.set_window_bounds(x, y, w, h)
+
     def showEvent(self, event) -> None:
         super().showEvent(event)
+        self.xbox_widget.visible = True
         try:
             self.plugin.on_show()
         except Exception as e:
@@ -61,6 +106,7 @@ class PluginWidgetWrapper(WidgetBase):
 
     def hideEvent(self, event) -> None:
         super().hideEvent(event)
+        self.xbox_widget.visible = False
         try:
             self.plugin.on_hide()
         except Exception as e:
@@ -76,7 +122,7 @@ class PluginLoader:
             plugin_dirs = [user_plugins]
         self.plugin_dirs = [Path(p) for p in plugin_dirs]
         self.host_config = host_config
-        self.loaded_plugins: Dict[str, GameBarWidgetPlugin] = {}
+        self.loaded_plugins: Dict[str, XboxGameBarWidgetPlugin] = {}
         self.wrapped_widgets: Dict[str, PluginWidgetWrapper] = {}
 
     def ensure_directories(self) -> None:
@@ -95,7 +141,6 @@ class PluginLoader:
             if not directory.exists() or not directory.is_dir():
                 continue
 
-            # 1. Search for subdirectories with plugin.py or __init__.py
             for entry in directory.iterdir():
                 if entry.is_dir():
                     candidate = entry / "plugin.py"
@@ -119,17 +164,18 @@ class PluginLoader:
             sys.modules[module_name] = mod
             spec.loader.exec_module(mod)
 
-            # Find GameBarWidgetPlugin subclasses
             for name, obj in inspect.getmembers(mod, inspect.isclass):
-                if issubclass(obj, GameBarWidgetPlugin) and obj is not GameBarWidgetPlugin:
+                if issubclass(obj, (XboxGameBarWidgetPlugin, GameBarWidgetPlugin)) and obj not in (
+                    XboxGameBarWidgetPlugin,
+                    GameBarWidgetPlugin,
+                ):
                     meta = getattr(obj, "METADATA", None)
                     if not meta or not meta.id:
                         logger.warning(f"Plugin class {name} in {file_path} missing METADATA.id")
                         continue
 
-                    # Instantiate context and plugin
                     ctx = WidgetContext(meta.id, self.host_config)
-                    plugin_instance: GameBarWidgetPlugin = obj(ctx)
+                    plugin_instance: XboxGameBarWidgetPlugin = obj(ctx)
                     plugin_instance.on_load()
 
                     wrapper = PluginWidgetWrapper(plugin_instance, parent=parent_window)

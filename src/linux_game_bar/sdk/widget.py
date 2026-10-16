@@ -1,13 +1,24 @@
 """
 Linux Game Bar Widget SDK.
 Provides standard interfaces and classes for developers to build custom widgets
-that integrate directly into the Linux Game Bar overlay ecosystem.
+that integrate directly into the Linux Game Bar overlay ecosystem, implementing the
+official Microsoft.Gaming.XboxGameBar contracts.
 """
 
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Any, Callable
 from PySide6.QtWidgets import QWidget
 from PySide6.QtCore import QObject, Signal
+
+from linux_game_bar.sdk.xbox_game_bar import (
+    XboxGameBarWidget,
+    XboxGameBarWidgetActivatedEventArgs,
+    XboxGameBarDisplayMode,
+    XboxGameBarWindowState,
+    XboxGameBarRecordingState,
+    XboxGameBarTheme,
+    XboxGameBarAppTarget,
+)
 
 
 @dataclass
@@ -24,7 +35,7 @@ class WidgetMetadata:
     default_height: int = 400
     min_width: int = 260
     min_height: int = 200
-    permissions: list[str] = field(default_factory=list)  # e.g. ["audio", "metrics", "filesystem"]
+    permissions: list[str] = field(default_factory=list)
 
 
 class WidgetContext(QObject):
@@ -61,30 +72,31 @@ class WidgetContext(QObject):
         self.notification_requested.emit(title, message)
 
 
-class GameBarWidgetPlugin(QObject):
+class XboxGameBarWidgetPlugin(QObject):
     """
-    Base class for Linux Game Bar widget plugins.
-    Developers subclass this class, specify METADATA, and implement build_widget().
+    Base class for Linux Game Bar widget plugins matching Microsoft.Gaming.XboxGameBar.
+
+    Developers override on_navigated_to(args) or build_widget() to construct their UI.
+    args.widget gives direct access to the XboxGameBarWidget instance and its events.
 
     Example:
     ```python
-    from linux_game_bar.sdk import GameBarWidgetPlugin, WidgetMetadata
+    from linux_game_bar.sdk import XboxGameBarWidgetPlugin, WidgetMetadata, XboxGameBarWidgetActivatedEventArgs
     from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
-    class MyCustomWidget(GameBarWidgetPlugin):
+    class MyWidget(XboxGameBarWidgetPlugin):
         METADATA = WidgetMetadata(
             id="com.developer.my_widget",
             title="MY WIDGET",
-            version="1.0.0",
-            author="Developer Name",
-            description="A cool widget for Linux Game Bar",
-            icon_name="plugin",
         )
 
-        def build_widget(self) -> QWidget:
+        def on_navigated_to(self, args: XboxGameBarWidgetActivatedEventArgs) -> QWidget:
+            self.widget = args.widget
+            self.widget.pinned_changed.connect(self.on_pinned_changed)
+
             container = QWidget()
             layout = QVBoxLayout(container)
-            layout.addWidget(QLabel("Hello from custom widget!"))
+            layout.addWidget(QLabel("Hello from Xbox Game Bar widget!"))
             return container
     ```
     """
@@ -97,6 +109,7 @@ class GameBarWidgetPlugin(QObject):
     def __init__(self, context: WidgetContext):
         super().__init__()
         self.context = context
+        self.widget: Optional[XboxGameBarWidget] = None
         self._widget_ui: Optional[QWidget] = None
 
     def on_load(self) -> None:
@@ -107,22 +120,34 @@ class GameBarWidgetPlugin(QObject):
         """Called when the plugin is unloaded or Game Bar daemon is stopping."""
         pass
 
-    def build_widget(self) -> QWidget:
+    def on_navigated_to(self, args: XboxGameBarWidgetActivatedEventArgs) -> Optional[QWidget]:
+        """
+        Windows Xbox Game Bar standard activation callback.
+        Receives XboxGameBarWidgetActivatedEventArgs containing args.widget.
+        """
+        return self.build_widget()
+
+    def build_widget(self) -> Optional[QWidget]:
         """
         Build and return the internal QWidget content for this widget.
-        The host automatically wraps this content in a standard WidgetBase frame
-        with Windows Fluent header, pin button, close button, dragging, and resize grip.
+        The host automatically wraps this content in a standard WidgetBase frame.
         """
-        raise NotImplementedError("Plugins must implement build_widget().")
+        return None
 
     def on_show(self) -> None:
         """Called when the widget becomes visible on screen."""
-        pass
+        if self.widget:
+            self.widget.visible = True
 
     def on_hide(self) -> None:
         """Called when the widget is hidden."""
-        pass
+        if self.widget:
+            self.widget.visible = False
 
     def on_pinned_changed(self, is_pinned: bool) -> None:
         """Called when the user pins or unpins this widget."""
         pass
+
+
+# Backward compatibility alias
+GameBarWidgetPlugin = XboxGameBarWidgetPlugin
