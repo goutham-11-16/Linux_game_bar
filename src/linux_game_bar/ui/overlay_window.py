@@ -41,10 +41,6 @@ class OverlayWindow(QWidget):
         self._init_components()
         self._restore_saved_state()
 
-        qinst = QApplication.instance()
-        if qinst:
-            qinst.installEventFilter(self)
-
     def _init_window(self) -> None:
         # Overlay window attributes
         # Qt.Tool prevents window manager taskbar and Alt-Tab interception while staying fully Wayland/Chromium compliant
