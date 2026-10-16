@@ -71,7 +71,7 @@ class OverlayWindow(QWidget):
         self.dashboard_bar.quit_clicked.connect(self.hide_overlay)
 
         # Center top bar
-        bar_w = 540
+        bar_w = 580
         bar_x = (self.width() - bar_w) // 2
         self.dashboard_bar.setGeometry(bar_x, 15, bar_w, 44)
 
