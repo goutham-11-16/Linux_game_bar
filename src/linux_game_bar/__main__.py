@@ -29,8 +29,56 @@ def main() -> int:
     parser.add_argument("--remove-shortcut", action="store_true", help="Unregister GNOME shortcut")
     parser.add_argument("--daemon", action="store_true", help="Start background daemon without opening overlay")
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose debug logging")
+    parser.add_argument("--install", metavar="SOURCE", help="Install widget from Git URL, ZIP, or folder")
+    parser.add_argument("--list-plugins", action="store_true", help="List installed widgets")
+    parser.add_argument("--remove-plugin", metavar="ID", help="Remove an installed widget")
+    parser.add_argument("command", nargs="?", choices=["install", "list-plugins", "remove-plugin"], help="Widget management command")
+    parser.add_argument("target", nargs="?", help="Target URL, zip file, or widget ID")
 
     args = parser.parse_args()
+
+    # Widget Package Management CLI
+    if args.command == "install" or args.install:
+        from linux_game_bar.sdk.installer import WidgetInstaller
+        src = args.target or args.install
+        if not src:
+            print("Error: Missing target repository URL, zip file, or folder path to install.")
+            return 1
+        print(f"Installing widget from: {src} ...")
+        ok, msg, wid = WidgetInstaller.install(src)
+        if ok:
+            print(f"SUCCESS: {msg}")
+            return 0
+        else:
+            print(f"FAILED: {msg}")
+            return 1
+
+    if args.command == "list-plugins" or args.list_plugins:
+        from linux_game_bar.sdk.installer import WidgetInstaller
+        plugins = WidgetInstaller.list_installed_plugins()
+        if not plugins:
+            print("No third-party widgets installed.")
+            return 0
+        print(f"Installed Third-Party Widgets ({len(plugins)}):")
+        print(f"{'ID':<32} {'TITLE':<24} {'PATH'}")
+        print("-" * 80)
+        for p in plugins:
+            print(f"{p['id']:<32} {p['title']:<24} {p['path']}")
+        return 0
+
+    if args.command == "remove-plugin" or args.remove_plugin:
+        from linux_game_bar.sdk.installer import WidgetInstaller
+        target_id = args.target or args.remove_plugin
+        if not target_id:
+            print("Error: Missing widget ID to remove.")
+            return 1
+        ok, msg = WidgetInstaller.uninstall_plugin(target_id)
+        if ok:
+            print(f"SUCCESS: {msg}")
+            return 0
+        else:
+            print(f"FAILED: {msg}")
+            return 1
 
     # 1. Diagnostics flag
     if args.diagnostics:

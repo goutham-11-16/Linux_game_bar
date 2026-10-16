@@ -28,6 +28,7 @@ from linux_game_bar.sdk.loader import (
     PluginLoader,
     PluginWidgetWrapper,
 )
+from linux_game_bar.sdk.installer import WidgetInstaller
 
 __all__ = [
     # 1:1 Microsoft.Gaming.XboxGameBar classes
@@ -48,4 +49,5 @@ __all__ = [
     "WidgetContext",
     "PluginLoader",
     "PluginWidgetWrapper",
+    "WidgetInstaller",
 ]

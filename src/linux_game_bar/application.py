@@ -64,6 +64,7 @@ class LinuxGameBarApp(QObject):
         self.ipc_manager.show_requested.connect(self.overlay_window.show_overlay)
         self.ipc_manager.hide_requested.connect(self.overlay_window.hide_overlay)
         self.ipc_manager.quit_requested.connect(self.shutdown)
+        self.ipc_manager.reload_requested.connect(self.overlay_window.reload_plugins)
 
         # Start metrics telemetry worker
         interval_ms = self.config_manager.get("metrics.sampling_interval_ms", 1000)

@@ -190,6 +190,7 @@ class DashboardBar(QFrame):
 
     widget_toggled = Signal(str, bool)  # widget_id, active
     settings_clicked = Signal()
+    add_widget_clicked = Signal()
     quit_clicked = Signal()
 
     def __init__(self, parent: QWidget = None):
@@ -309,7 +310,18 @@ class DashboardBar(QFrame):
         )
         layout.addWidget(self.clock_label)
 
-        # 4. Settings Button (Gear vector icon)
+        # 4. Add Widget / Widget Store Button (+)
+        self.btn_add_widget = QPushButton()
+        self.btn_add_widget.setFixedSize(32, 34)
+        self.btn_add_widget.setIconSize(QSize(16, 16))
+        self.btn_add_widget.setIcon(icons.get_icon("plus", color="#CCCCCC", size=16))
+        self.btn_add_widget.setToolTip("Widget Store / Add Widget (+)")
+        self.btn_add_widget.setCursor(Qt.PointingHandCursor)
+        self._apply_icon_button_style(self.btn_add_widget)
+        self.btn_add_widget.clicked.connect(self.add_widget_clicked.emit)
+        layout.addWidget(self.btn_add_widget)
+
+        # 5. Settings Button (Gear vector icon)
         self.btn_settings = QPushButton()
         self.btn_settings.setFixedSize(32, 34)
         self.btn_settings.setIconSize(QSize(16, 16))

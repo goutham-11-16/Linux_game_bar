@@ -22,6 +22,7 @@ from linux_game_bar.widgets.notes import NotesWidget
 from linux_game_bar.widgets.timer import TimerWidget
 from linux_game_bar.widgets.browser import BrowserWidget
 from linux_game_bar.widgets.autotyper import AutoTyperWidget
+from linux_game_bar.widgets.widget_store import WidgetStoreWidget
 from linux_game_bar.sdk.loader import PluginLoader
 
 
@@ -64,10 +65,11 @@ class OverlayWindow(QWidget):
         self.dashboard_bar = DashboardBar(self)
         self.dashboard_bar.widget_toggled.connect(self._on_widget_toggled)
         self.dashboard_bar.settings_clicked.connect(self._open_settings)
+        self.dashboard_bar.add_widget_clicked.connect(self._open_widget_store)
         self.dashboard_bar.quit_clicked.connect(self.hide_overlay)
 
         # Center top bar
-        bar_w = 620
+        bar_w = 660
         bar_x = (self.width() - bar_w) // 2
         self.dashboard_bar.setGeometry(bar_x, 15, bar_w, 44)
 
@@ -81,6 +83,7 @@ class OverlayWindow(QWidget):
         self.widget_timer = TimerWidget(self)
         self.widget_browser = BrowserWidget(self.config_manager, self)
         self.widget_autotyper = AutoTyperWidget(self.config_manager, self)
+        self.widget_store = WidgetStoreWidget(self.config_manager, on_plugins_changed=self.reload_plugins, parent=self)
 
         self._register_widget("performance", self.widget_perf)
         self._register_widget("audio", self.widget_audio)
@@ -91,6 +94,7 @@ class OverlayWindow(QWidget):
         self._register_widget("battery", self.widget_battery)
         self._register_widget("notes", self.widget_notes)
         self._register_widget("timer", self.widget_timer)
+        self._register_widget("widget_store", self.widget_store)
 
         # 3. Third-party SDK Plugins
         self.plugin_loader = PluginLoader(host_config=self.config_manager)
@@ -105,6 +109,32 @@ class OverlayWindow(QWidget):
                     icon_name=meta.icon_name,
                     is_favorite=False,
                 )
+
+    def _open_widget_store(self) -> None:
+        """Toggle Widget Store dialog/window."""
+        if self.widget_store.isVisible():
+            self.widget_store.hide()
+        else:
+            self.widget_store.refresh_installed_list()
+            self.widget_store.show()
+            self.widget_store.raise_()
+
+    def reload_plugins(self) -> None:
+        """Dynamically reload third-party widgets and update Home Bar / menu flyout."""
+        new_widgets = self.plugin_loader.reload_plugins(parent_window=self)
+        for wid, p_widget in new_widgets.items():
+            if wid not in self._widgets:
+                self._register_widget(wid, p_widget)
+                meta = p_widget.plugin.METADATA
+                if hasattr(self.dashboard_bar, "menu_flyout"):
+                    self.dashboard_bar.menu_flyout.add_widget_entry(
+                        widget_id=wid,
+                        display_name=meta.title,
+                        icon_name=meta.icon_name,
+                        is_favorite=False,
+                    )
+        if hasattr(self, "widget_store") and self.widget_store:
+            self.widget_store.refresh_installed_list()
 
     def _register_widget(self, widget_id: str, widget: WidgetBase) -> None:
         self._widgets[widget_id] = widget

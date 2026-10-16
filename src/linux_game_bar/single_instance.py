@@ -30,6 +30,7 @@ class SingleInstanceManager(QObject):
     show_requested = Signal()
     hide_requested = Signal()
     quit_requested = Signal()
+    reload_requested = Signal()
 
     def __init__(self, parent: QObject = None):
         super().__init__(parent)
@@ -121,6 +122,8 @@ class SingleInstanceManager(QObject):
                     self.hide_requested.emit()
                 elif data == "quit":
                     self.quit_requested.emit()
+                elif data == "reload":
+                    self.reload_requested.emit()
             client_socket.write(b"OK\n")
             client_socket.flush()
         except Exception as e:

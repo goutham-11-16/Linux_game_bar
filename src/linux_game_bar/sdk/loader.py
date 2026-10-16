@@ -174,6 +174,10 @@ class PluginLoader:
                         logger.warning(f"Plugin class {name} in {file_path} missing METADATA.id")
                         continue
 
+                    if meta.id in self.wrapped_widgets:
+                        logger.debug(f"Plugin {meta.id} already loaded, skipping.")
+                        continue
+
                     ctx = WidgetContext(meta.id, self.host_config)
                     plugin_instance: XboxGameBarWidgetPlugin = obj(ctx)
                     plugin_instance.on_load()
@@ -185,3 +189,7 @@ class PluginLoader:
 
         except Exception as e:
             logger.error(f"Failed to load plugin from {file_path}: {e}", exc_info=True)
+
+    def reload_plugins(self, parent_window: Optional[QWidget] = None) -> Dict[str, PluginWidgetWrapper]:
+        """Re-scans plugin directories and loads newly installed plugins."""
+        return self.discover_and_load(parent_window=parent_window)
