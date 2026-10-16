@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import logging
+from pathlib import Path
 from typing import Optional
 
 from PySide6.QtCore import Qt, QUrl
@@ -32,6 +33,7 @@ logger = logging.getLogger("linux_game_bar.browser")
 # Check QtWebEngine availability
 try:
     from PySide6.QtWebEngineWidgets import QWebEngineView
+    from PySide6.QtWebEngineCore import QWebEngineProfile, QWebEnginePage
     HAS_WEBENGINE = True
 except ImportError:
     HAS_WEBENGINE = False
@@ -133,6 +135,16 @@ class BrowserWidget(WidgetBase):
         self.btn_popout.clicked.connect(self._open_in_external_browser)
         nav_layout.addWidget(self.btn_popout)
 
+        # Clear Browsing Data Button (Trash icon to wipe cookies, logins, and cache if desired)
+        self.btn_clear_data = QPushButton()
+        self.btn_clear_data.setFixedSize(28, 28)
+        self.btn_clear_data.setIcon(icons.get_icon("trash", color="#CCCCCC", size=14))
+        self.btn_clear_data.setToolTip("Clear Browsing Data (Cookies, Logins & Cache)")
+        self.btn_clear_data.setCursor(Qt.PointingHandCursor)
+        self.btn_clear_data.setStyleSheet("QPushButton { background: transparent; border: none; border-radius: 4px; } QPushButton:hover { background: rgba(239,83,80,0.2); }")
+        self.btn_clear_data.clicked.connect(self.clear_browsing_data)
+        nav_layout.addWidget(self.btn_clear_data)
+
         self.content_layout.addWidget(nav_frame)
 
         # Progress bar
@@ -156,6 +168,22 @@ class BrowserWidget(WidgetBase):
             self.web_view = QWebEngineView()
             self.web_view.setStyleSheet("background: #1e1e22; border-radius: 4px;")
 
+            # Configure Persistent Profile (persists logins, Google accounts, cookies, cache)
+            profile_dir = Path.home() / ".local" / "share" / "linux-game-bar" / "browser_profile"
+            profile_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                os.chmod(profile_dir, 0o700)
+            except Exception:
+                pass
+
+            self._profile = QWebEngineProfile("linux_game_bar_browser", self)
+            self._profile.setPersistentStoragePath(str(profile_dir / "storage"))
+            self._profile.setCachePath(str(profile_dir / "cache"))
+            self._profile.setPersistentCookiesPolicy(QWebEngineProfile.PersistentCookiesPolicy.ForcePersistentCookies)
+
+            self.web_page = QWebEnginePage(self._profile, self.web_view)
+            self.web_view.setPage(self.web_page)
+
             # Wire navigation actions
             self.btn_back.clicked.connect(self.web_view.back)
             self.btn_forward.clicked.connect(self.web_view.forward)
@@ -178,6 +206,18 @@ class BrowserWidget(WidgetBase):
             lbl_err.setStyleSheet("color: #A0A0A5; font-size: 12px;")
             f_layout.addWidget(lbl_err)
             self.content_layout.addWidget(fallback, 1)
+
+    def clear_browsing_data(self) -> None:
+        """Clears all session cookies, cache, and history to protect user privacy."""
+        if hasattr(self, "_profile") and self._profile:
+            self._profile.clearAllVisitedLinks()
+            self._profile.clearHttpCache()
+            if self._profile.cookieStore():
+                self._profile.cookieStore().deleteAllCookies()
+            if self.web_view:
+                start_url = self.config_manager.get("browser.start_url", "https://duckduckgo.com")
+                self.web_view.setUrl(QUrl(start_url))
+            logger.info("Cleared browser cookies, cache, and visited links.")
 
     def _navigate_url(self) -> None:
         raw_text = self.url_bar.text().strip()
