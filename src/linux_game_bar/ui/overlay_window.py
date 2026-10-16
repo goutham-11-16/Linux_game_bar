@@ -45,11 +45,14 @@ class OverlayWindow(QWidget):
             qinst.installEventFilter(self)
 
     def _init_window(self) -> None:
-        # Overlay window attributes
+        # Overlay window attributes - bypass window manager so it acts as an OS-level overlay
+        # Qt.Tool + Qt.BypassWindowManagerHint prevents window manager taskbar/Alt-Tab/Overview interception
         self.setWindowFlags(
             Qt.Window
             | Qt.FramelessWindowHint
             | Qt.WindowStaysOnTopHint
+            | Qt.Tool
+            | Qt.BypassWindowManagerHint
         )
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WA_AlwaysShowToolTips, True)
