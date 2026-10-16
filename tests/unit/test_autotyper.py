@@ -113,6 +113,11 @@ def test_hotkey_capture_box(qapp):
     assert "Alt" in box.text()
     assert "T" in box.text()
 
+    # Shifted number key (e.g. Shift + 1 -> Key_Exclam -> D1)
+    ev_shift_1 = QKeyEvent(QKeyEvent.KeyPress, Qt.Key_Exclam, Qt.ControlModifier | Qt.ShiftModifier)
+    box.keyPressEvent(ev_shift_1)
+    assert box.text() == "Control, Shift + D1"
+
     # Clear with Backspace
     ev_bs = QKeyEvent(QKeyEvent.KeyPress, Qt.Key_Backspace, Qt.NoModifier)
     box.keyPressEvent(ev_bs)
@@ -125,3 +130,6 @@ def test_hotkey_service_normalization():
     assert GlobalHotKeyService.normalize_hotkey("F8") == "f8"
     assert GlobalHotKeyService.normalize_hotkey("Control, Shift + F8") == "ctrl+shift+f8"
     assert GlobalHotKeyService.normalize_hotkey("Windows, Alt + D1") == "alt+super+1"
+    assert GlobalHotKeyService.normalize_hotkey("Control, Shift + D1") == "ctrl+shift+1"
+    assert GlobalHotKeyService.normalize_hotkey("Control, Shift + Key_33") == "ctrl+shift+1"
+    assert GlobalHotKeyService.normalize_hotkey("Ctrl + Shift + 1") == "ctrl+shift+1"

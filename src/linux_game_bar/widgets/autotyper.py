@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from typing import List, Optional
 
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import Qt, QSize, Signal
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QWidget,
@@ -44,9 +44,12 @@ class AutoTyperWidget(WidgetBase):
     Standalone Auto Typer Widget matching Microsoft Xbox Game Bar layout & features.
     """
 
+    trigger_hotkey_signal = Signal(object)
+
     def __init__(self, config_manager=None, parent: Optional[QWidget] = None):
         super().__init__("autotyper", "AUTO TYPER", "keyboard", parent)
         self.config_manager = config_manager
+        self.trigger_hotkey_signal.connect(self._trigger_snippet_by_hotkey)
         self.setMinimumSize(400, 520)
         self.resize(410, 560)
 
@@ -483,10 +486,10 @@ class AutoTyperWidget(WidgetBase):
             if not snippet.hotkey or snippet.hotkey.strip().lower() in ("none", ""):
                 continue
 
-            # Capture snippet in closure
+            # Capture snippet in closure and safely emit Qt signal to GUI thread
             def make_trigger(s=snippet):
                 logger.info(f"[AutoTyperWidget] Hotkey triggered for snippet '{s.name}'")
-                self._trigger_snippet_by_hotkey(s)
+                self.trigger_hotkey_signal.emit(s)
 
             hotkey_svc.register(snippet.hotkey, make_trigger)
 

@@ -199,6 +199,16 @@ class AutoTyperWorker(QThread):
                 self.finished_operation.emit(False, "Cancelled.")
                 return
 
+            # Wait for physical modifiers (e.g. Ctrl, Shift) to release from hotkey press
+            try:
+                from linux_game_bar.core.hotkey_service import get_hotkey_service
+                hotkey_svc = get_hotkey_service()
+                hotkey_svc.wait_for_modifiers_released(timeout_sec=1.2)
+                hotkey_svc.release_modifiers()
+            except Exception as ex:
+                logger.warning(f"Failed releasing modifiers: {ex}")
+            self.msleep(100)
+
             self.state_changed.emit("Typing")
             self.status_changed.emit("Typing in progress...")
 
@@ -230,12 +240,18 @@ class AutoTyperWorker(QThread):
             self.msleep(100)
         return not self._is_cancelled
 
-    def _send_ydotool_type(self, chunk: str) -> None:
+    def _send_ydotool_type(self, chunk: str, delay_char: int = 15) -> None:
+        if not chunk:
+            return
         env = dict(os.environ)
         if os.path.exists(self._socket_path):
             env["YDOTOOL_SOCKET"] = self._socket_path
+        cmd = ["ydotool", "type"]
+        if delay_char > 0:
+            cmd.extend(["-d", str(delay_char), "-H", "10"])
+        cmd.extend(["--", chunk])
         subprocess.run(
-            ["ydotool", "type", "--", chunk],
+            cmd,
             env=env,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -273,49 +289,91 @@ class AutoTyperWorker(QThread):
         )
 
     def _execute_fast(self, total_len: int) -> None:
-        for idx, char in enumerate(self.text):
+        tokens = TokenParser.parse(self.text)
+        processed = 0
+
+        for token in tokens:
             if not self._wait_if_paused():
                 return
 
-            if char == "\n":
-                self._send_ydotool_key("28")
-                self.msleep(max(self.delay_word, 20))
-            elif char == "\t":
-                self._send_ydotool_key("15")
-                self.msleep(max(self.delay_char, 15))
-            else:
-                self._send_ydotool_type(char)
-                if char == " ":
-                    self.msleep(self.delay_word)
-                else:
-                    self.msleep(self.delay_char)
+            if token.token_type == TokenType.TEXT:
+                parts = re.findall(r"\S+|\s+", token.text_value)
+                for part in parts:
+                    if not self._wait_if_paused():
+                        return
+                    if "\n" in part:
+                        for c in part:
+                            if c == "\n":
+                                self._send_ydotool_key("28")
+                                self.msleep(max(self.delay_word, 20))
+                            elif c == "\t":
+                                self._send_ydotool_key("15")
+                                self.msleep(max(self.delay_char, 15))
+                            else:
+                                self._send_ydotool_type(c, delay_char=max(1, self.delay_char))
+                            processed += 1
+                    else:
+                        self._send_ydotool_type(part, delay_char=max(1, self.delay_char))
+                        if part.isspace() and self.delay_word > 0:
+                            self.msleep(self.delay_word)
+                        processed += len(part)
 
-            if idx % 5 == 0 or idx == total_len - 1:
-                self.progress_updated.emit(idx + 1, total_len)
+                    self.progress_updated.emit(min(processed, total_len), total_len)
+
+            elif token.token_type == TokenType.KEY_PRESS:
+                self._send_ydotool_key(token.key_name)
+                self.msleep(20)
+                processed += 1
+                self.progress_updated.emit(min(processed, total_len), total_len)
+
+            elif token.token_type == TokenType.DELAY:
+                self.msleep(max(10, token.delay_ms))
 
     def _execute_human_like(self, total_len: int) -> None:
-        for idx, char in enumerate(self.text):
+        tokens = TokenParser.parse(self.text)
+        processed = 0
+
+        for token in tokens:
             if not self._wait_if_paused():
                 return
 
-            if char == "\n":
-                self._send_ydotool_key("28")
-                enter_delay = self.delay_word if self.delay_word > 0 else random.randint(120, 240)
-                self.msleep(enter_delay)
-            elif char == "\t":
-                self._send_ydotool_key("15")
-                self.msleep(random.randint(40, 90))
-            else:
-                self._send_ydotool_type(char)
-                if char == " ":
-                    space_delay = self.delay_word if self.delay_word > 0 else random.randint(35, 90)
-                    self.msleep(space_delay)
-                else:
-                    char_jitter = max(2, self.delay_char + random.randint(-5, 15))
-                    self.msleep(char_jitter)
+            if token.token_type == TokenType.TEXT:
+                parts = re.findall(r"\S+|\s+", token.text_value)
+                for part in parts:
+                    if not self._wait_if_paused():
+                        return
 
-            if idx % 5 == 0 or idx == total_len - 1:
-                self.progress_updated.emit(idx + 1, total_len)
+                    if "\n" in part:
+                        for c in part:
+                            if c == "\n":
+                                self._send_ydotool_key("28")
+                                self.msleep(self.delay_word if self.delay_word > 0 else random.randint(120, 220))
+                            elif c == "\t":
+                                self._send_ydotool_key("15")
+                                self.msleep(random.randint(40, 80))
+                            else:
+                                self._send_ydotool_type(c, delay_char=self.delay_char)
+                            processed += 1
+                    elif part.isspace():
+                        self._send_ydotool_type(part, delay_char=self.delay_char)
+                        space_delay = self.delay_word if self.delay_word > 0 else random.randint(30, 80)
+                        self.msleep(space_delay)
+                        processed += len(part)
+                    else:
+                        jitter = max(2, self.delay_char + random.randint(-4, 10))
+                        self._send_ydotool_type(part, delay_char=jitter)
+                        processed += len(part)
+
+                    self.progress_updated.emit(min(processed, total_len), total_len)
+
+            elif token.token_type == TokenType.KEY_PRESS:
+                self._send_ydotool_key(token.key_name)
+                self.msleep(40)
+                processed += 1
+                self.progress_updated.emit(min(processed, total_len), total_len)
+
+            elif token.token_type == TokenType.DELAY:
+                self.msleep(max(10, token.delay_ms))
 
     def _execute_macro(self, total_len: int) -> None:
         tokens = TokenParser.parse(self.text)
@@ -336,9 +394,7 @@ class AutoTyperWorker(QThread):
                         self._send_ydotool_key("15")
                         self.msleep(max(self.delay_char, 15))
                     else:
-                        self._send_ydotool_type(c)
-                        self.msleep(self.delay_char)
-
+                        self._send_ydotool_type(c, delay_char=self.delay_char)
                     processed += 1
                     self.progress_updated.emit(min(processed, total_len), total_len)
 

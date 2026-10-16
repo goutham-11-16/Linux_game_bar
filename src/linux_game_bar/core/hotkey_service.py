@@ -31,6 +31,7 @@ class GlobalHotKeyService:
         self._thread: Optional[threading.Thread] = None
         self._registry: Dict[str, Callable[[], None]] = {}
         self._lock = threading.Lock()
+        self._active_mods: Set[str] = set()
         self.is_paused = False
 
     def register(self, hotkey_str: str, callback: Callable[[], None]) -> bool:
@@ -66,6 +67,19 @@ class GlobalHotKeyService:
         parts = re.split(r"[\s\+\,]+", hotkey_str.strip().lower())
         mods = set()
         keys = []
+        ascii_shift_digits = {
+            "33": "1",  # !
+            "64": "2",  # @
+            "35": "3",  # #
+            "36": "4",  # $
+            "37": "5",  # %
+            "94": "6",  # ^
+            "38": "7",  # &
+            "42": "8",  # *
+            "40": "9",  # (
+            "41": "0",  # )
+        }
+
         for p in parts:
             if not p:
                 continue
@@ -78,8 +92,11 @@ class GlobalHotKeyService:
             elif p in ("windows", "win", "super"):
                 mods.add("super")
             else:
-                # Standardize D0-D9 to 0-9
-                if p.startswith("d") and len(p) == 2 and p[1].isdigit():
+                if p.startswith("key_"):
+                    p = p[4:]
+                if p in ascii_shift_digits:
+                    keys.append(ascii_shift_digits[p])
+                elif p.startswith("d") and len(p) == 2 and p[1].isdigit():
                     keys.append(p[1])
                 elif p.startswith("numpad") and len(p) == 7 and p[6].isdigit():
                     keys.append(p[6])
@@ -88,6 +105,35 @@ class GlobalHotKeyService:
 
         sorted_parts = sorted(list(mods)) + sorted(keys)
         return "+".join(sorted_parts)
+
+    def are_modifiers_held(self) -> bool:
+        with self._lock:
+            return len(self._active_mods) > 0
+
+    def wait_for_modifiers_released(self, timeout_sec: float = 1.2) -> None:
+        """Waits until user's fingers have released physical modifier keys (matching Windows InputService)."""
+        import time
+        start = time.time()
+        while time.time() - start < timeout_sec:
+            if not self.are_modifiers_held():
+                break
+            time.sleep(0.025)
+
+    @staticmethod
+    def release_modifiers() -> None:
+        """Sends key-up events for modifier keys to clear state in compositor/uinput."""
+        import subprocess
+        socket_path = os.environ.get("YDOTOOL_SOCKET", "/tmp/.ydotool_socket")
+        env = dict(os.environ)
+        if os.path.exists(socket_path):
+            env["YDOTOOL_SOCKET"] = socket_path
+        subprocess.run(
+            ["ydotool", "key", "29:0", "97:0", "42:0", "54:0", "56:0", "100:0", "125:0", "126:0"],
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
 
     def ensure_started(self) -> None:
         if not HAS_EVDEV:
@@ -180,6 +226,8 @@ class GlobalHotKeyService:
                                 active_mods.add(mod)
                             elif is_up:
                                 active_mods.discard(mod)
+                            with self._lock:
+                                self._active_mods = set(active_mods)
                             continue
 
                         # Regular key

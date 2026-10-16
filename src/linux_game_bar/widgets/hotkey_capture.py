@@ -66,12 +66,29 @@ class HotKeyCaptureBox(QLineEdit):
         if modifiers & Qt.MetaModifier:
             mods_str.append("Windows")
 
+        SHIFT_MAP = {
+            Qt.Key_Exclam: "D1",
+            Qt.Key_At: "D2",
+            Qt.Key_NumberSign: "D3",
+            Qt.Key_Dollar: "D4",
+            Qt.Key_Percent: "D5",
+            Qt.Key_AsciiCircum: "D6",
+            Qt.Key_Ampersand: "D7",
+            Qt.Key_Asterisk: "D8",
+            Qt.Key_ParenLeft: "D9",
+            Qt.Key_ParenRight: "D0",
+            Qt.Key_Underscore: "Minus",
+            Qt.Key_Plus: "Equal",
+        }
+
         key_name = ""
+        if key in SHIFT_MAP:
+            key_name = SHIFT_MAP[key]
         # Function keys F1 - F24
-        if Qt.Key_F1 <= key <= Qt.Key_F24:
+        elif Qt.Key_F1 <= key <= Qt.Key_F24:
             f_num = key - Qt.Key_F1 + 1
             key_name = f"F{f_num}"
-        # Number keys
+        # Number keys 0 - 9
         elif Qt.Key_0 <= key <= Qt.Key_9:
             num = key - Qt.Key_0
             key_name = f"D{num}"
