@@ -1,0 +1,50 @@
+{
+  "theme": "xbox_dark",
+  "accent_color": "#107C10",
+  "overlay_opacity": 0.88,
+  "hotkey": "<Super>g",
+  "fallback_hotkey": "<Control><Alt>g",
+  "autostart": false,
+  "metrics": {
+    "sampling_interval_ms": 1000,
+    "history_points": 45,
+    "show_per_core_cpu": false,
+    "thermal_warning_c": 85.0
+  },
+  "audio": {
+    "preferred_backend": "pipewire",
+    "step_percentage": 5
+  },
+  "capture": {
+    "screenshot_directory": "~/Pictures/Captures",
+    "recording_directory": "~/Videos/Captures",
+    "record_framerate": 30,
+    "include_cursor": true,
+    "audio_capture": true
+  },
+  "launcher": {
+    "favorites": ["steam", "discord", "lutris", "heroic", "obs"],
+    "show_recent": true,
+    "custom_entries": []
+  },
+  "notes": {
+    "auto_save_interval_ms": 1500
+  },
+  "timer": {
+    "default_duration_seconds": 1500,
+    "sound_enabled": true
+  },
+  "ui": {
+    "open_widgets": ["performance", "audio", "capture"],
+    "pinned_widgets": [],
+    "widget_positions": {
+      "performance": {"x": 40, "y": 90, "width": 320, "height": 440},
+      "audio": {"x": 380, "y": 90, "width": 340, "height": 420},
+      "capture": {"x": 740, "y": 90, "width": 320, "height": 380},
+      "launcher": {"x": 380, "y": 90, "width": 480, "height": 460},
+      "battery": {"x": 1080, "y": 90, "width": 300, "height": 340},
+      "notes": {"x": 740, "y": 90, "width": 360, "height": 450},
+      "timer": {"x": 1080, "y": 90, "width": 300, "height": 320}
+    }
+  }
+}

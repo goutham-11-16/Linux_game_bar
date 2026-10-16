@@ -1,0 +1,15 @@
+{
+  "name": "Linux Game Bar Integration",
+  "description": "Compositor-level Super+G activation and native Wayland integration for Linux Game Bar",
+  "uuid": "linux-game-bar@ubuntu.com",
+  "shell-version": [
+    "45",
+    "46",
+    "47",
+    "48",
+    "49",
+    "50",
+    "51"
+  ],
+  "version": 1
+}

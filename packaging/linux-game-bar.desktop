@@ -1,0 +1,26 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Linux Game Bar
+GenericName=Gaming Dashboard Overlay
+Comment=Xbox Game Bar-inspired overlay for Ubuntu GNOME (Super + G)
+Exec=linux-game-bar --toggle
+Icon=linux-game-bar
+Terminal=false
+Categories=Game;Utility;Monitor;AudioVideo;
+Keywords=game;bar;overlay;xbox;performance;screen;record;capture;
+StartupNotify=false
+X-GNOME-UsesNotifications=true
+Actions=Toggle;Performance;Capture;
+
+[Desktop Action Toggle]
+Name=Toggle Game Bar Overlay
+Exec=linux-game-bar --toggle
+
+[Desktop Action Performance]
+Name=Open Performance Monitor
+Exec=linux-game-bar --show
+
+[Desktop Action Capture]
+Name=Screen Capture
+Exec=linux-game-bar --show
