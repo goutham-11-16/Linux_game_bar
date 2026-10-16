@@ -28,9 +28,8 @@ apps:
     command: bin/linux-game-bar
     desktop: usr/share/applications/linux-game-bar.desktop
     environment:
-      PYTHONPATH: $SNAP/usr/lib/python3/dist-packages:$SNAP/lib/python3.12/site-packages:$SNAP/src
-      PATH: $SNAP/bin:$SNAP/usr/bin:$PATH
-      LD_LIBRARY_PATH: $SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET:$LD_LIBRARY_PATH
+      PATH: $SNAP/usr/bin:$SNAP/bin:$PATH
+      LD_LIBRARY_PATH: $SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET:$SNAP/usr/lib:$LD_LIBRARY_PATH
       QT_QPA_PLATFORM: wayland;xcb
 
 parts:
@@ -43,14 +42,12 @@ parts:
       - usr/share/applications/linux-game-bar.desktop
 
   linux-game-bar:
-    plugin: python
+    plugin: nil
     source: .
     build-packages:
       - python3
       - python3-pip
       - python3-venv
-      - python3-setuptools
-      - python3-wheel
     stage-packages:
       - python3
       - python3-venv
@@ -62,12 +59,26 @@ parts:
       - ydotool
       - xdotool
       - git
-    python-requirements:
-      - requirements.txt
-    stage:
-      - bin/
-      - lib/
-      - usr/
-      - src/
-      - assets/
-      - config/
+    override-build: |
+      # 1. Create a dedicated virtualenv inside the snap payload
+      python3 -m venv "$CRAFT_PART_INSTALL/usr/venv"
+      
+      # 2. Install pip dependencies
+      "$CRAFT_PART_INSTALL/usr/venv/bin/pip" install --upgrade pip
+      "$CRAFT_PART_INSTALL/usr/venv/bin/pip" install -r requirements.txt
+      "$CRAFT_PART_INSTALL/usr/venv/bin/pip" install .
+      
+      # 3. Copy source and assets
+      mkdir -p "$CRAFT_PART_INSTALL/src" "$CRAFT_PART_INSTALL/assets" "$CRAFT_PART_INSTALL/config"
+      cp -r src/* "$CRAFT_PART_INSTALL/src/"
+      cp -r assets/* "$CRAFT_PART_INSTALL/assets/"
+      cp -r config/* "$CRAFT_PART_INSTALL/config/"
+      
+      # 4. Create launch wrapper script
+      mkdir -p "$CRAFT_PART_INSTALL/bin"
+      cat << 'WRAPPER' > "$CRAFT_PART_INSTALL/bin/linux-game-bar"
+      #!/usr/bin/env bash
+      export PYTHONPATH="$SNAP/src:$SNAP/usr/venv/lib/python3.12/site-packages"
+      exec "$SNAP/usr/venv/bin/python3" -m linux_game_bar "$@"
+      WRAPPER
+      chmod +x "$CRAFT_PART_INSTALL/bin/linux-game-bar"
