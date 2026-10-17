@@ -6,7 +6,7 @@ import shutil
 import logging
 import subprocess
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Callable
 
 logger = logging.getLogger("linux_game_bar.capture")
 
@@ -54,7 +54,12 @@ class CaptureService:
             return candidates[0][1]
         return None
 
-    def _portal_screenshot_automatic(self, target_file: Path) -> Optional[Path]:
+    def _portal_screenshot_automatic(
+        self,
+        target_file: Path,
+        before_snap: Optional[Callable[[], None]] = None,
+        after_snap: Optional[Callable[[], None]] = None,
+    ) -> Optional[Path]:
         """Take automatic full screenshot via portal without prompting for region, silently without shutter sounds or OS banners."""
         py_script = """
 import sys, urllib.parse, shutil, subprocess
@@ -109,6 +114,15 @@ conn.signal_subscribe(
     None
 )
 
+# Notify parent process that portal listener and silent settings are ready
+print('READY', flush=True)
+
+# Wait for trigger from parent
+try:
+    sys.stdin.readline()
+except Exception:
+    pass
+
 try:
     conn.call_sync(
         'org.freedesktop.portal.Desktop',
@@ -123,6 +137,9 @@ try:
     )
 except Exception:
     pass
+
+# Mutter captures the screen synchronously during call_sync
+print('CAPTURED', flush=True)
 
 GLib.timeout_add_seconds(6, loop.quit)
 loop.run()
@@ -143,16 +160,48 @@ if saved_path:
     sys.exit(0)
 sys.exit(1)
 """
+        proc = None
+        snap_restored = False
         try:
-            res = subprocess.run(
+            proc = subprocess.Popen(
                 ["/usr/bin/python3", "-c", py_script],
+                stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                timeout=8,
+                bufsize=1,
             )
-            if res.returncode == 0:
-                for line in res.stdout.splitlines():
+
+            # Wait for child to be READY
+            ready_line = ""
+            if proc.stdout:
+                ready_line = proc.stdout.readline().strip()
+
+            if ready_line == "READY":
+                if before_snap:
+                    try:
+                        before_snap()
+                    except Exception as e:
+                        logger.warning(f"Error in before_snap callback: {e}")
+
+                if proc.stdin:
+                    proc.stdin.write("GO\n")
+                    proc.stdin.flush()
+
+                # Wait for CAPTURED acknowledgment
+                if proc.stdout:
+                    captured_line = proc.stdout.readline().strip()
+                    if captured_line == "CAPTURED" and after_snap:
+                        snap_restored = True
+                        try:
+                            after_snap()
+                        except Exception as e:
+                            logger.warning(f"Error in after_snap callback: {e}")
+
+            stdout, _ = proc.communicate(timeout=8)
+
+            if proc.returncode == 0 and stdout:
+                for line in stdout.splitlines():
                     if line.startswith("SAVED:"):
                         src_path = Path(line.replace("SAVED:", "").strip())
                         if src_path.exists():
@@ -160,22 +209,42 @@ sys.exit(1)
                             return target_file
         except Exception as e:
             logger.warning(f"Automatic full screenshot failed: {e}")
+        finally:
+            if not snap_restored and after_snap:
+                try:
+                    after_snap()
+                except Exception:
+                    pass
+            if proc and proc.poll() is None:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
         return None
 
-    def take_screenshot(self, interactive: bool = False) -> Tuple[bool, str]:
+    def take_screenshot(
+        self,
+        interactive: bool = False,
+        before_snap: Optional[Callable[[], None]] = None,
+        after_snap: Optional[Callable[[], None]] = None,
+    ) -> Tuple[bool, str]:
         """Take a screenshot using desktop portal or available tools."""
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         target_file = self.capture_dir / f"Screenshot_{timestamp}.png"
 
         # 1. Automatic full desktop screenshot without region prompt
         if not interactive:
-            auto_file = self._portal_screenshot_automatic(target_file)
+            auto_file = self._portal_screenshot_automatic(
+                target_file, before_snap=before_snap, after_snap=after_snap
+            )
             if auto_file and auto_file.exists():
                 logger.info(f"Automatic full screenshot saved to {auto_file}")
                 return True, str(auto_file)
 
         # 2. Try portal interactive mode
         try:
+            if before_snap:
+                before_snap()
             inter_val = "true" if interactive else "false"
             res = subprocess.run(
                 [
@@ -196,29 +265,43 @@ sys.exit(1)
                 text=True,
                 timeout=5,
             )
+            if after_snap:
+                after_snap()
             if res.returncode == 0:
                 logger.info("Screenshot requested via xdg-desktop-portal.")
                 return True, str(target_file)
         except Exception as e:
+            if after_snap:
+                after_snap()
             logger.warning(f"Portal screenshot attempt failed: {e}")
 
         # Fallback to grim if available
         if shutil.which("grim"):
             try:
+                if before_snap:
+                    before_snap()
                 res = subprocess.run(["grim", str(target_file)], timeout=3)
+                if after_snap:
+                    after_snap()
                 if res.returncode == 0 and target_file.exists():
                     return True, str(target_file)
             except Exception:
-                pass
+                if after_snap:
+                    after_snap()
 
         # Fallback to gnome-screenshot if available
         if shutil.which("gnome-screenshot"):
             try:
+                if before_snap:
+                    before_snap()
                 res = subprocess.run(["gnome-screenshot", "-f", str(target_file)], timeout=5)
+                if after_snap:
+                    after_snap()
                 if res.returncode == 0 and target_file.exists():
                     return True, str(target_file)
             except Exception:
-                pass
+                if after_snap:
+                    after_snap()
 
         return False, "No working screenshot method found for this session."
 

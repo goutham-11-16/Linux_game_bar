@@ -245,7 +245,7 @@ class CaptureWidget(WidgetBase):
                 spacing: 6px;
             }
         """)
-        self.chk_clean_bg.setChecked(self.config_manager.get("capture.clean_background_capture", False))
+        self.chk_clean_bg.setChecked(self.config_manager.get("capture.clean_background_capture", True))
         self.chk_clean_bg.toggled.connect(self._on_clean_bg_toggled)
         vbox_act.addWidget(self.chk_clean_bg)
 
@@ -557,38 +557,46 @@ class CaptureWidget(WidgetBase):
     def _take_screenshot(self) -> None:
         self.btn_capture.setEnabled(False)
 
-        clean_mode = self.config_manager.get("capture.clean_background_capture", False)
+        clean_mode = self.config_manager.get("capture.clean_background_capture", True)
 
         top_win = self.window()
         was_visible = clean_mode and top_win and top_win.isVisible()
 
-        if was_visible:
-            self.lbl_status.setText("Capturing clean background screenshot...")
-            if hasattr(top_win, "hide_for_capture"):
-                top_win.hide_for_capture()
-            else:
-                top_win.hide()
-                QApplication.processEvents()
-            time.sleep(0.18)
-            QApplication.processEvents()
-        else:
-            self.lbl_status.setText("Capturing screenshot...")
+        def do_hide() -> None:
+            if was_visible:
+                if hasattr(top_win, "hide_for_capture"):
+                    top_win.hide_for_capture()
+                else:
+                    top_win.hide()
+                    QApplication.processEvents()
 
-        before_time = time.time() - 1.0
-
-        try:
-            success, path_or_msg = self.service.take_screenshot(interactive=False)
-        finally:
+        def do_restore() -> None:
             if was_visible:
                 if hasattr(top_win, "restore_after_capture"):
                     top_win.restore_after_capture()
                 else:
                     top_win.show()
                     top_win.raise_()
-                    top_win.activateWindow()
                 self.raise_()
                 self.activateWindow()
                 QApplication.processEvents()
+
+        if clean_mode:
+            self.lbl_status.setText("Capturing clean background screenshot...")
+        else:
+            self.lbl_status.setText("Capturing screenshot...")
+
+        before_time = time.time() - 1.0
+
+        try:
+            success, path_or_msg = self.service.take_screenshot(
+                interactive=False,
+                before_snap=do_hide if was_visible else None,
+                after_snap=do_restore if was_visible else None,
+            )
+        finally:
+            if was_visible:
+                do_restore()
             self.btn_capture.setEnabled(True)
 
         if not success:

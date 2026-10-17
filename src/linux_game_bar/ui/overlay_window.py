@@ -214,21 +214,31 @@ class OverlayWindow(QWidget):
         self.visibility_changed.emit(False)
 
     def hide_for_capture(self) -> None:
-        """Temporarily hide overlay window and all widgets so clean desktop/game is captured."""
+        """Temporarily unmap overlay surface so clean background game/desktop is captured."""
         self.hide()
         QApplication.processEvents()
 
     def restore_after_capture(self) -> None:
-        """Restore overlay visibility after screenshot capture completes."""
+        """Instantly restore overlay visibility after screenshot snapshot."""
         if self._is_overlay_visible:
-            self.show_overlay()
+            self.show()
+            self.raise_()
+            open_list = self.config_manager.get("ui.open_widgets", [])
+            for w_id in open_list:
+                w = self._widgets.get(w_id)
+                if w:
+                    w.show()
+                    w.raise_()
+            self.dashboard_bar.show()
+            self.dashboard_bar.raise_()
         elif self._pinned_widgets:
             self.show()
             self._update_pinned_mask()
             for w_id in self._pinned_widgets:
-                if w_id in self._widgets:
-                    self._widgets[w_id].show()
-                    self._widgets[w_id].raise_()
+                w = self._widgets.get(w_id)
+                if w:
+                    w.show()
+                    w.raise_()
         QApplication.processEvents()
 
     def _update_pinned_mask(self) -> None:

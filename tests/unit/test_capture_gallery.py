@@ -101,13 +101,17 @@ def test_take_screenshot_hides_overlay_during_capture(qapp, tmp_path: Path):
     q_img.fill(0xFF00FF00)
     q_img.save(str(captured_img))
 
-    # 1. Test clean background mode explicitly: window hides and restores
+    # 1. Test clean background mode: window hides during snap and restores
     widget.config_manager.set("capture.clean_background_capture", True)
     was_hidden_during_capture = False
 
     def mock_capture(*args, **kwargs):
+        if "before_snap" in kwargs and kwargs["before_snap"]:
+            kwargs["before_snap"]()
         nonlocal was_hidden_during_capture
         was_hidden_during_capture = not parent.isVisible()
+        if "after_snap" in kwargs and kwargs["after_snap"]:
+            kwargs["after_snap"]()
         return True, str(captured_img)
 
     widget.service.take_screenshot = MagicMock(side_effect=mock_capture)
@@ -119,11 +123,13 @@ def test_take_screenshot_hides_overlay_during_capture(qapp, tmp_path: Path):
     assert parent.isVisible() is True
     assert widget.active_screenshot_path == str(captured_img)
 
-    # 2. Test default seamless silent mode: window stays open smoothly
+    # 2. Test non-clean mode: window stays open smoothly without callbacks
     widget.config_manager.set("capture.clean_background_capture", False)
     was_hidden_seamless = False
 
     def mock_capture_seamless(*args, **kwargs):
+        assert kwargs.get("before_snap") is None
+        assert kwargs.get("after_snap") is None
         nonlocal was_hidden_seamless
         was_hidden_seamless = not parent.isVisible()
         return True, str(captured_img)
