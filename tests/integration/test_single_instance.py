@@ -36,3 +36,34 @@ def test_single_instance_toggle_ipc(qapp, tmp_path):
         single_instance.get_socket_path = orig_fn
         server_mgr.cleanup()
         qapp.processEvents()
+
+
+def test_single_instance_screenshot_ipc(qapp, tmp_path):
+    sock_path = str(tmp_path / "test_screenshot_ipc.sock")
+
+    server_mgr = SingleInstanceManager()
+    server_mgr.socket_path = sock_path
+
+    screenshot_received = []
+    server_mgr.screenshot_requested.connect(lambda: screenshot_received.append(True))
+
+    assert server_mgr.start_server() is True
+
+    from linux_game_bar import single_instance
+    orig_fn = single_instance.get_socket_path
+    single_instance.get_socket_path = lambda: sock_path
+
+    try:
+        res = SingleInstanceManager.send_command("screenshot", timeout_ms=500)
+        assert res is True
+
+        qapp.processEvents()
+        time.sleep(0.1)
+        qapp.processEvents()
+
+        assert len(screenshot_received) == 1
+    finally:
+        single_instance.get_socket_path = orig_fn
+        server_mgr.cleanup()
+        qapp.processEvents()
+

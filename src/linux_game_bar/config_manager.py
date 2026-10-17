@@ -33,7 +33,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "record_framerate": 30,
         "include_cursor": True,
         "audio_capture": True,
-        "clean_background_capture": True,
+        "clean_background_capture": False,
+        "screenshot_hotkey": "<Super><Alt>Print",
     },
     "launcher": {
         "favorites": ["steam", "discord", "lutris", "heroic", "obs"],
@@ -125,9 +126,9 @@ class ConfigManager:
             self.save()
             return
 
-        # Ensure clean background capture is always enabled so Game Bar overlay is never captured
         if "capture" in self.data and isinstance(self.data["capture"], dict):
-            self.data["capture"]["clean_background_capture"] = True
+            self.data["capture"].setdefault("clean_background_capture", False)
+            self.data["capture"].setdefault("screenshot_hotkey", "<Super><Alt>Print")
 
     def save(self) -> None:
         """Persist current configuration atomically using a temp file."""

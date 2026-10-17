@@ -193,7 +193,7 @@ class CaptureWidget(WidgetBase):
         self.btn_capture.setFixedSize(40, 40)
         self.btn_capture.setIconSize(QSize(20, 20))
         self.btn_capture.setIcon(icons.get_icon("camera", color="#FFFFFF", active_color="#107C41", size=20))
-        self.btn_capture.setToolTip("Take screenshot")
+        self.btn_capture.setToolTip("Take screenshot (or press Win+Alt+PrtScn / Win+Alt+S in-game)")
         self.btn_capture.setCursor(Qt.PointingHandCursor)
         self._apply_round_button_style(self.btn_capture, highlight=True)
         self.btn_capture.clicked.connect(self._take_screenshot)
@@ -251,7 +251,7 @@ class CaptureWidget(WidgetBase):
         self.content_layout.addWidget(card_actions)
 
         # 2. Status message
-        self.lbl_status = QLabel("Ready to capture.")
+        self.lbl_status = QLabel("Ready. (Tip: Win+Alt+PrtScn snaps game silently)")
         self.lbl_status.setStyleSheet("font-size: 11px; color: #8E8E93; padding: 1px 2px; background: transparent;")
         self.lbl_status.setWordWrap(True)
         self.content_layout.addWidget(self.lbl_status)
@@ -536,6 +536,10 @@ class CaptureWidget(WidgetBase):
         if path_str:
             self._select_screenshot(path_str)
 
+    def trigger_capture(self) -> None:
+        """Trigger screenshot capture from shortcut or IPC command."""
+        self._take_screenshot()
+
     def _take_screenshot(self) -> None:
         self.btn_capture.setEnabled(False)
 
@@ -546,9 +550,11 @@ class CaptureWidget(WidgetBase):
         target_win = top_win if hasattr(top_win, "hide_for_capture") else parent_candidate
 
         was_visible = bool(target_win and target_win.isVisible())
+        is_clean_mode = bool(self.config_manager.get("capture.clean_background_capture", False))
+        should_hide = was_visible and is_clean_mode
 
         def do_hide() -> None:
-            if was_visible:
+            if should_hide:
                 if hasattr(target_win, "hide_for_capture"):
                     target_win.hide_for_capture()
                 else:
@@ -561,7 +567,7 @@ class CaptureWidget(WidgetBase):
             if restored:
                 return
             restored = True
-            if was_visible:
+            if should_hide:
                 if hasattr(target_win, "restore_after_capture"):
                     target_win.restore_after_capture()
                 else:
@@ -570,17 +576,20 @@ class CaptureWidget(WidgetBase):
                 self.raise_()
                 QApplication.processEvents()
 
-        self.lbl_status.setText("Capturing clean background screenshot...")
+        if is_clean_mode:
+            self.lbl_status.setText("Capturing clean background screenshot...")
+        else:
+            self.lbl_status.setText("Capturing screenshot...")
         before_time = time.time() - 1.0
 
         try:
             success, path_or_msg = self.service.take_screenshot(
                 interactive=False,
-                before_snap=do_hide if was_visible else None,
-                after_snap=do_restore if was_visible else None,
+                before_snap=do_hide if should_hide else None,
+                after_snap=do_restore if should_hide else None,
             )
         finally:
-            if was_visible:
+            if should_hide:
                 do_restore()
             self.btn_capture.setEnabled(True)
 

@@ -21,7 +21,8 @@
     "record_framerate": 30,
     "include_cursor": true,
     "audio_capture": true,
-    "clean_background_capture": true
+    "clean_background_capture": false,
+    "screenshot_hotkey": "<Super><Alt>Print"
   },
   "launcher": {
     "favorites": ["steam", "discord", "lutris", "heroic", "obs"],

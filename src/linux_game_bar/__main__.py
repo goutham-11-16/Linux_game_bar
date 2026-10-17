@@ -25,8 +25,10 @@ def main() -> int:
     parser.add_argument("--hide", action="store_true", help="Hide overlay dashboard")
     parser.add_argument("--quit", action="store_true", help="Quit running daemon instance")
     parser.add_argument("--diagnostics", action="store_true", help="Print platform capabilities diagnostic report")
-    parser.add_argument("--setup-shortcut", action="store_true", help="Register GNOME Super+G shortcut")
-    parser.add_argument("--remove-shortcut", action="store_true", help="Unregister GNOME shortcut")
+    parser.add_argument("--screenshot", action="store_true", help="Take a silent screenshot without opening Game Bar")
+    parser.add_argument("--setup-shortcut", action="store_true", help="Register GNOME global shortcuts (Super+G and Super+Alt+Print)")
+    parser.add_argument("--setup-screenshot-shortcut", action="store_true", help="Register GNOME Super+Alt+Print screenshot shortcut")
+    parser.add_argument("--remove-shortcut", action="store_true", help="Unregister GNOME shortcuts")
     parser.add_argument("--daemon", action="store_true", help="Start background daemon without opening overlay")
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose debug logging")
     parser.add_argument("--install", metavar="SOURCE", help="Install widget from Git URL, ZIP, or folder")
@@ -87,28 +89,63 @@ def main() -> int:
         return 0
 
     # 2. GNOME Shortcut Management flags
-    if args.setup_shortcut:
+    if args.setup_shortcut or args.setup_screenshot_shortcut:
+        from linux_game_bar.platform.gnome_integration import (
+            GnomeShortcutManager,
+            DEFAULT_SHORTCUT_NAME,
+            DEFAULT_SCREENSHOT_SHORTCUT_NAME,
+        )
         mgr = GnomeShortcutManager()
         import shutil
         exec_bin = shutil.which("linux-game-bar") or str(Path.home() / ".local" / "bin" / "linux-game-bar")
-        cmd = f"{exec_bin} --toggle"
-        ok = mgr.register_shortcut(cmd, shortcut="<Super>g")
-        if ok:
-            print("Successfully registered GNOME shortcut Super + G ->", cmd)
-            return 0
+
+        res_ok = True
+        if args.setup_shortcut:
+            cmd = f"{exec_bin} --toggle"
+            ok_toggle = mgr.register_shortcut(cmd, shortcut="<Super>g", name=DEFAULT_SHORTCUT_NAME)
+            if ok_toggle:
+                print("Successfully registered GNOME shortcut Super + G ->", cmd)
+            else:
+                print("Failed to register GNOME shortcut Super + G.")
+                res_ok = False
+
+        # Register screenshot shortcut
+        snap_cmd = f"{exec_bin} --screenshot"
+        ok_snap = mgr.register_shortcut(snap_cmd, shortcut="<Super><Alt>Print", name=DEFAULT_SCREENSHOT_SHORTCUT_NAME)
+        if ok_snap:
+            print("Successfully registered GNOME screenshot shortcut Super + Alt + Print ->", snap_cmd)
         else:
-            print("Failed to register GNOME shortcut. Check logs.")
-            return 1
+            print("Failed to register GNOME screenshot shortcut.")
+            res_ok = False
+
+        return 0 if res_ok else 1
 
     if args.remove_shortcut:
+        from linux_game_bar.platform.gnome_integration import (
+            GnomeShortcutManager,
+            DEFAULT_SHORTCUT_NAME,
+            DEFAULT_SCREENSHOT_SHORTCUT_NAME,
+        )
         mgr = GnomeShortcutManager()
-        ok = mgr.unregister_shortcut()
+        mgr.unregister_shortcut(name=DEFAULT_SHORTCUT_NAME)
+        mgr.unregister_shortcut(name=DEFAULT_SCREENSHOT_SHORTCUT_NAME)
+        print("Successfully unregistered GNOME shortcuts.")
+        return 0
+
+    # 3. Single Instance Command Forwarding
+    if args.screenshot:
+        if SingleInstanceManager.send_command("screenshot"):
+            print("Requested background screenshot capture.")
+            return 0
+        from linux_game_bar.platform.portals import CaptureService
+        service = CaptureService()
+        ok, path_or_msg = service.take_screenshot(interactive=False)
         if ok:
-            print("Successfully unregistered GNOME shortcut.")
+            print(f"Screenshot captured: {path_or_msg}")
             return 0
         else:
-            print("No Linux Game Bar shortcut found to unregister.")
-            return 0
+            print(f"Capture failed: {path_or_msg}")
+            return 1
 
     # 3. Single Instance Command Forwarding
     if args.quit:

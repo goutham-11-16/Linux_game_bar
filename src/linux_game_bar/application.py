@@ -65,6 +65,7 @@ class LinuxGameBarApp(QObject):
         self.ipc_manager.hide_requested.connect(self.overlay_window.hide_overlay)
         self.ipc_manager.quit_requested.connect(self.shutdown)
         self.ipc_manager.reload_requested.connect(self.overlay_window.reload_plugins)
+        self.ipc_manager.screenshot_requested.connect(self.trigger_screenshot)
 
         # Start metrics telemetry worker
         interval_ms = self.config_manager.get("metrics.sampling_interval_ms", 1000)
@@ -93,6 +94,15 @@ class LinuxGameBarApp(QObject):
 
         logger.info("Linux Game Bar background daemon is active.")
         return self.qapp.exec()
+
+    def trigger_screenshot(self) -> None:
+        """Silently capture screenshot via IPC command or global hotkey."""
+        logger.info("Triggering screenshot via IPC / global shortcut...")
+        if self.overlay_window and hasattr(self.overlay_window, "widget_capture"):
+            self.overlay_window.widget_capture.trigger_capture()
+        else:
+            from linux_game_bar.platform.portals import CaptureService
+            CaptureService().take_screenshot(interactive=False)
 
     def shutdown(self) -> None:
         """Cleanly stop background services and exit."""

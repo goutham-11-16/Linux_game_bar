@@ -140,4 +140,23 @@ def test_take_screenshot_hides_overlay_during_capture(qapp, tmp_path: Path):
     assert was_hidden_closed is False
     assert parent.isVisible() is False
 
+    # 3. Test direct screen capture mode (clean_background_capture=False): window NEVER hides
+    parent.show()
+    widget.config_manager.set("capture.clean_background_capture", False)
+    was_never_hidden = True
+
+    def mock_capture_direct(*args, **kwargs):
+        assert kwargs.get("before_snap") is None
+        assert kwargs.get("after_snap") is None
+        nonlocal was_never_hidden
+        was_never_hidden = parent.isVisible()
+        return True, str(captured_img)
+
+    widget.service.take_screenshot = MagicMock(side_effect=mock_capture_direct)
+    widget.trigger_capture()
+
+    assert was_never_hidden is True
+    assert parent.isVisible() is True
+
+
 

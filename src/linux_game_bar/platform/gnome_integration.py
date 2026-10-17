@@ -14,6 +14,7 @@ SCHEMA_MEDIA_KEYS = "org.gnome.settings-daemon.plugins.media-keys"
 SCHEMA_CUSTOM_KEY = "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding"
 KEY_CUSTOM_BINDINGS = "custom-keybindings"
 DEFAULT_SHORTCUT_NAME = "Linux Game Bar"
+DEFAULT_SCREENSHOT_SHORTCUT_NAME = "Linux Game Bar Screenshot"
 SHORTCUT_PATH_PREFIX = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/"
 
 
@@ -103,7 +104,7 @@ class GnomeShortcutManager:
         norm_req = requested_shortcut.lower().replace(" ", "")
         for path in self.get_custom_bindings():
             details = self.get_binding_details(path)
-            if details["name"] == DEFAULT_SHORTCUT_NAME:
+            if details["name"] in (DEFAULT_SHORTCUT_NAME, DEFAULT_SCREENSHOT_SHORTCUT_NAME):
                 continue
             if details["binding"].lower().replace(" ", "") == norm_req:
                 return (details["name"], details["command"])
