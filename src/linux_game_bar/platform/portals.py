@@ -181,6 +181,8 @@ sys.exit(1)
                         before_snap()
                     except Exception as e:
                         logger.warning(f"Error in before_snap callback: {e}")
+                    # Allow Wayland compositor 80ms to flip buffer and unmap surface from scene graph
+                    time.sleep(0.08)
 
                 if proc.stdin:
                     proc.stdin.write("GO\n")
