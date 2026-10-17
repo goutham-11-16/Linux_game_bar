@@ -55,12 +55,35 @@ class CaptureService:
         return None
 
     def _portal_screenshot_automatic(self, target_file: Path) -> Optional[Path]:
-        """Take automatic full screenshot via portal without prompting for region."""
+        """Take automatic full screenshot via portal without prompting for region, silently without shutter sounds or OS banners."""
         py_script = """
-import sys, urllib.parse, shutil
+import sys, urllib.parse, shutil, subprocess
 import gi
 gi.require_version('Gio', '2.0')
 from gi.repository import Gio, GLib
+
+app_schema = 'org.gnome.desktop.notifications.application:/org/gnome/desktop/notifications/application/org-freedesktop-portal-desktop/'
+sound_schema = 'org.gnome.desktop.sound'
+
+orig_sound = None
+orig_enable = None
+orig_banners = None
+
+# Suppress shutter sound
+try:
+    orig_sound = subprocess.check_output(['gsettings', 'get', sound_schema, 'event-sounds'], stderr=subprocess.DEVNULL).decode().strip()
+    subprocess.run(['gsettings', 'set', sound_schema, 'event-sounds', 'false'], stderr=subprocess.DEVNULL)
+except Exception:
+    pass
+
+# Suppress portal notification popup / banner
+try:
+    orig_enable = subprocess.check_output(['gsettings', 'get', app_schema, 'enable'], stderr=subprocess.DEVNULL).decode().strip()
+    orig_banners = subprocess.check_output(['gsettings', 'get', app_schema, 'show-banners'], stderr=subprocess.DEVNULL).decode().strip()
+    subprocess.run(['gsettings', 'set', app_schema, 'enable', 'false'], stderr=subprocess.DEVNULL)
+    subprocess.run(['gsettings', 'set', app_schema, 'show-banners', 'false'], stderr=subprocess.DEVNULL)
+except Exception:
+    pass
 
 loop = GLib.MainLoop()
 conn = Gio.bus_get_sync(Gio.BusType.SESSION, None)
@@ -99,10 +122,22 @@ try:
         None
     )
 except Exception:
-    sys.exit(1)
+    pass
 
 GLib.timeout_add_seconds(6, loop.quit)
 loop.run()
+
+# Restore original audio and notification preferences
+try:
+    if orig_sound:
+        subprocess.run(['gsettings', 'set', sound_schema, 'event-sounds', orig_sound], stderr=subprocess.DEVNULL)
+    if orig_enable:
+        subprocess.run(['gsettings', 'set', app_schema, 'enable', orig_enable], stderr=subprocess.DEVNULL)
+    if orig_banners:
+        subprocess.run(['gsettings', 'set', app_schema, 'show-banners', orig_banners], stderr=subprocess.DEVNULL)
+except Exception:
+    pass
+
 if saved_path:
     print('SAVED:' + saved_path)
     sys.exit(0)

@@ -20,7 +20,8 @@
     "recording_directory": "~/Videos/Captures",
     "record_framerate": 30,
     "include_cursor": true,
-    "audio_capture": true
+    "audio_capture": true,
+    "clean_background_capture": false
   },
   "launcher": {
     "favorites": ["steam", "discord", "lutris", "heroic", "obs"],

@@ -101,11 +101,12 @@ def test_take_screenshot_hides_overlay_during_capture(qapp, tmp_path: Path):
     q_img.fill(0xFF00FF00)
     q_img.save(str(captured_img))
 
+    # 1. Test clean background mode explicitly: window hides and restores
+    widget.config_manager.set("capture.clean_background_capture", True)
     was_hidden_during_capture = False
 
     def mock_capture(*args, **kwargs):
         nonlocal was_hidden_during_capture
-        # Check that parent window is hidden while taking screenshot
         was_hidden_during_capture = not parent.isVisible()
         return True, str(captured_img)
 
@@ -117,4 +118,20 @@ def test_take_screenshot_hides_overlay_during_capture(qapp, tmp_path: Path):
     assert was_hidden_during_capture is True
     assert parent.isVisible() is True
     assert widget.active_screenshot_path == str(captured_img)
+
+    # 2. Test default seamless silent mode: window stays open smoothly
+    widget.config_manager.set("capture.clean_background_capture", False)
+    was_hidden_seamless = False
+
+    def mock_capture_seamless(*args, **kwargs):
+        nonlocal was_hidden_seamless
+        was_hidden_seamless = not parent.isVisible()
+        return True, str(captured_img)
+
+    widget.service.take_screenshot = MagicMock(side_effect=mock_capture_seamless)
+    widget._take_screenshot()
+
+    assert was_hidden_seamless is False
+    assert parent.isVisible() is True
+
 

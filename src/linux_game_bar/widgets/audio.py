@@ -133,6 +133,13 @@ class AudioBackend:
                             sinks.append(ep)
                         else:
                             sources.append(ep)
+
+            # If PipeWire configured default sink via a filter or virtual node,
+            # ensure at least one active hardware sink is designated as default
+            if sinks and not any(s.is_default for s in sinks):
+                sinks[0].is_default = True
+            if sources and not any(s.is_default for s in sources):
+                sources[0].is_default = True
         except Exception as e:
             logger.error(f"Error parsing wpctl status: {e}")
 

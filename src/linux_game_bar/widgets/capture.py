@@ -235,8 +235,8 @@ class CaptureWidget(WidgetBase):
         vbox_act.addLayout(row_btns)
 
         # Clean Background capture mode toggle
-        self.chk_clean_bg = QCheckBox("Exclude Game Bar from captures")
-        self.chk_clean_bg.setToolTip("Momentarily withdraws Game Bar so only the underlying game or app is captured.")
+        self.chk_clean_bg = QCheckBox("Hide Game Bar while capturing")
+        self.chk_clean_bg.setToolTip("When checked, Game Bar temporarily hides so only the background game is captured. Uncheck for instant silent capture without closing the Game Bar.")
         self.chk_clean_bg.setStyleSheet("""
             QCheckBox {
                 font-size: 11px;
@@ -245,7 +245,7 @@ class CaptureWidget(WidgetBase):
                 spacing: 6px;
             }
         """)
-        self.chk_clean_bg.setChecked(self.config_manager.get("capture.clean_background_capture", True))
+        self.chk_clean_bg.setChecked(self.config_manager.get("capture.clean_background_capture", False))
         self.chk_clean_bg.toggled.connect(self._on_clean_bg_toggled)
         vbox_act.addWidget(self.chk_clean_bg)
 
@@ -557,7 +557,7 @@ class CaptureWidget(WidgetBase):
     def _take_screenshot(self) -> None:
         self.btn_capture.setEnabled(False)
 
-        clean_mode = self.config_manager.get("capture.clean_background_capture", True)
+        clean_mode = self.config_manager.get("capture.clean_background_capture", False)
 
         top_win = self.window()
         was_visible = clean_mode and top_win and top_win.isVisible()
