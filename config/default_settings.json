@@ -24,6 +24,9 @@
     "clean_background_capture": false,
     "screenshot_hotkey": "<Super><Alt>Print"
   },
+  "autotyper": {
+    "engine_enabled": true
+  },
   "launcher": {
     "favorites": ["steam", "discord", "lutris", "heroic", "obs"],
     "show_recent": true,

@@ -66,7 +66,13 @@ class AutoTyperWidget(WidgetBase):
         self._worker: Optional[AutoTyperWorker] = None
         self._active_running_snippet_id: Optional[str] = None
 
+        if self.config_manager:
+            self.engine_enabled = bool(self.config_manager.get("autotyper.engine_enabled", True))
+        else:
+            self.engine_enabled = True
+
         self._build_ui()
+        self._update_engine_ui()
         self._load_snippets()
 
     def _build_ui(self) -> None:
@@ -75,13 +81,21 @@ class AutoTyperWidget(WidgetBase):
         layout.setSpacing(8)
 
         # -------------------------------------------------------------
-        # Row 0: Status & Connection Header
+        # Row 0: Status & Connection Header + Master Engine Switch
         # -------------------------------------------------------------
         header_row = QHBoxLayout()
+        header_row.setSpacing(8)
+
         title_lbl = QLabel("AUTO TYPER FOR GAME BAR")
         title_lbl.setStyleSheet(f"font-weight: bold; font-size: 11px; color: {Theme.ACCENT_GREEN}; background: transparent;")
         header_row.addWidget(title_lbl)
         header_row.addStretch()
+
+        self.btn_engine_toggle = QPushButton("ENGINE: ON")
+        self.btn_engine_toggle.setFixedHeight(24)
+        self.btn_engine_toggle.setCursor(Qt.PointingHandCursor)
+        self.btn_engine_toggle.clicked.connect(self._toggle_engine)
+        header_row.addWidget(self.btn_engine_toggle)
 
         self.dot_lbl = QLabel("●")
         self.dot_lbl.setStyleSheet("color: #4CAF50; font-size: 14px; background: transparent;")
@@ -363,6 +377,10 @@ class AutoTyperWidget(WidgetBase):
             QPushButton:hover {{
                 background-color: #149c53;
             }}
+            QPushButton:disabled {{
+                background-color: #2b2b32;
+                color: #666666;
+            }}
         """)
         self.btn_start.clicked.connect(self._start_typing)
         action_row.addWidget(self.btn_start, 1)
@@ -485,6 +503,10 @@ class AutoTyperWidget(WidgetBase):
         hotkey_svc = get_hotkey_service()
         hotkey_svc.unregister_all()
 
+        if not self.engine_enabled:
+            logger.info("[AutoTyperWidget] Engine is OFF; global hotkeys will not be registered.")
+            return
+
         for snippet in self.snippets:
             if not snippet.hotkey or snippet.hotkey.strip().lower() in ("none", ""):
                 continue
@@ -504,6 +526,10 @@ class AutoTyperWidget(WidgetBase):
         If already typing this snippet, stops typing (toggle off).
         If idle, starts typing (toggle on).
         """
+        if not self.engine_enabled:
+            logger.info("[AutoTyperWidget] Ignoring snippet trigger because engine is OFF.")
+            return
+
         if self._worker and self._worker.isRunning():
             # If same snippet (or any active session) is triggered again, stop it
             if self._active_running_snippet_id == snippet.id or self._active_running_snippet_id is not None:
@@ -633,6 +659,10 @@ class AutoTyperWidget(WidgetBase):
         self.status_lbl.setText("Saved")
 
     def _start_typing(self) -> None:
+        if not self.engine_enabled:
+            self.lbl_progress_desc.setText("Cannot start: Auto Typer engine is turned OFF!")
+            return
+
         text = self.editor.toPlainText()
         if not text:
             self.lbl_progress_desc.setText("Cannot type empty snippet!")
@@ -738,3 +768,78 @@ class AutoTyperWidget(WidgetBase):
     def handle_esc_toggle(self) -> None:
         """Called when Esc is pressed within the UI overlay."""
         self._handle_esc_pressed()
+
+    def _toggle_engine(self) -> None:
+        """Toggle master engine state ON/OFF."""
+        self.set_engine_enabled(not self.engine_enabled)
+
+    def set_engine_enabled(self, enabled: bool) -> None:
+        """Set master engine enabled state, updating UI and hotkey registrations."""
+        self.engine_enabled = enabled
+        if self.config_manager:
+            self.config_manager.set("autotyper.engine_enabled", enabled)
+
+        if not enabled:
+            if self.is_typing_active():
+                self._stop_typing()
+            hotkey_svc = get_hotkey_service()
+            hotkey_svc.unregister_all()
+        else:
+            self._register_global_hotkeys()
+
+        self._update_engine_ui()
+
+    def _update_engine_ui(self) -> None:
+        """Update button style, status label, and widget availability based on engine state."""
+        if not hasattr(self, "btn_engine_toggle"):
+            return
+
+        if self.engine_enabled:
+            self.btn_engine_toggle.setText("ENGINE: ON")
+            self.btn_engine_toggle.setToolTip("Click to turn OFF the Auto Typer engine (disables all typing & hotkeys)")
+            self.btn_engine_toggle.setStyleSheet("""
+                QPushButton {
+                    background-color: #107C41;
+                    border: 1px solid #149c53;
+                    border-radius: 4px;
+                    padding: 2px 10px;
+                    font-size: 10px;
+                    font-weight: 700;
+                    color: #FFFFFF;
+                }
+                QPushButton:hover {
+                    background-color: #149c53;
+                }
+            """)
+            self.dot_lbl.setStyleSheet("color: #4CAF50; font-size: 14px; background: transparent;")
+            self.status_lbl.setText("Ready")
+            if hasattr(self, "btn_start"):
+                self.btn_start.setEnabled(True)
+                self.btn_start.setToolTip("Start typing snippet (3s countdown)")
+            if hasattr(self, "lbl_progress_desc") and self.lbl_progress_desc.text().startswith("Engine is turned OFF"):
+                self.lbl_progress_desc.setText("Ready. Select or save a snippet, then click Start Typing.")
+        else:
+            self.btn_engine_toggle.setText("ENGINE: OFF")
+            self.btn_engine_toggle.setToolTip("Click to turn ON the Auto Typer engine")
+            self.btn_engine_toggle.setStyleSheet("""
+                QPushButton {
+                    background-color: #3b2222;
+                    border: 1px solid #c62828;
+                    border-radius: 4px;
+                    padding: 2px 10px;
+                    font-size: 10px;
+                    font-weight: 700;
+                    color: #EF5350;
+                }
+                QPushButton:hover {
+                    background-color: #4a2a2a;
+                }
+            """)
+            self.dot_lbl.setStyleSheet("color: #E53935; font-size: 14px; background: transparent;")
+            self.status_lbl.setText("Disabled")
+            if hasattr(self, "btn_start"):
+                self.btn_start.setEnabled(False)
+                self.btn_start.setToolTip("Engine is turned OFF. Turn engine ON to enable typing.")
+            if hasattr(self, "lbl_progress_desc"):
+                self.lbl_progress_desc.setText("Engine is turned OFF. All hotkeys and auto-typing are disabled.")
+

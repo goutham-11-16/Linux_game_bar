@@ -183,3 +183,52 @@ def test_autotyper_esc_pause_and_continue(qapp, tmp_path):
     widget._stop_typing()
     assert widget.is_typing_active() is False
 
+
+def test_autotyper_engine_on_off(qapp, tmp_path):
+    widget = AutoTyperWidget(config_manager=None)
+    widget.show()
+    widget._storage_path = tmp_path / "snippets.json"
+
+    snip = Snippet(id="s3", name="Engine Test", text="Engine check", hotkey="F10")
+    widget.snippets = [snip]
+
+    # 1. Starts with engine ON
+    assert widget.engine_enabled is True
+    assert widget.btn_engine_toggle.text() == "ENGINE: ON"
+    assert widget.btn_start.isEnabled() is True
+
+    # 2. Toggle engine OFF
+    widget._toggle_engine()
+    assert widget.engine_enabled is False
+    assert widget.btn_engine_toggle.text() == "ENGINE: OFF"
+    assert widget.btn_start.isEnabled() is False
+    assert widget.status_lbl.text() == "Disabled"
+
+    # Attempt to trigger hotkey while engine is OFF -> nothing should work
+    widget._trigger_snippet_by_hotkey(snip)
+    assert widget.is_typing_active() is False
+
+    # Attempt to click start typing while engine is OFF -> nothing should work
+    widget.editor.setPlainText("Test text")
+    widget._start_typing()
+    assert widget.is_typing_active() is False
+    assert "turned OFF" in widget.lbl_progress_desc.text()
+
+    # 3. Toggle engine back ON
+    widget._toggle_engine()
+    assert widget.engine_enabled is True
+    assert widget.btn_engine_toggle.text() == "ENGINE: ON"
+    assert widget.btn_start.isEnabled() is True
+    assert widget.status_lbl.text() == "Ready"
+
+    # Now hotkey trigger works
+    widget._trigger_snippet_by_hotkey(snip)
+    assert widget.is_typing_active() is True
+
+    # Turning engine OFF while typing immediately aborts/stops active session
+    widget.set_engine_enabled(False)
+    assert widget.is_typing_active() is False
+    assert widget.engine_enabled is False
+    assert widget.btn_engine_toggle.text() == "ENGINE: OFF"
+
+

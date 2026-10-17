@@ -36,6 +36,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "clean_background_capture": False,
         "screenshot_hotkey": "<Super><Alt>Print",
     },
+    "autotyper": {
+        "engine_enabled": True,
+    },
     "launcher": {
         "favorites": ["steam", "discord", "lutris", "heroic", "obs"],
         "show_recent": True,
