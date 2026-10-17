@@ -123,6 +123,11 @@ class ConfigManager:
             except Exception:
                 pass
             self.save()
+            return
+
+        # Ensure clean background capture is always enabled so Game Bar overlay is never captured
+        if "capture" in self.data and isinstance(self.data["capture"], dict):
+            self.data["capture"]["clean_background_capture"] = True
 
     def save(self) -> None:
         """Persist current configuration atomically using a temp file."""

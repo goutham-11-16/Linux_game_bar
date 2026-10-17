@@ -214,13 +214,23 @@ class OverlayWindow(QWidget):
         self.visibility_changed.emit(False)
 
     def hide_for_capture(self) -> None:
-        """Temporarily unmap overlay surface so clean background game/desktop is captured."""
+        """Temporarily unmap overlay surface and all widgets so clean background game/desktop is captured."""
+        for w in self._widgets.values():
+            w.hide()
+        self.dashboard_bar.hide()
+        if hasattr(self.dashboard_bar, "menu_flyout"):
+            self.dashboard_bar.menu_flyout.hide()
+        self.clearMask()
         self.hide()
         QApplication.processEvents()
+        from PySide6.QtGui import QGuiApplication
+        if hasattr(QGuiApplication, "sync"):
+            QGuiApplication.sync()
 
     def restore_after_capture(self) -> None:
         """Instantly restore overlay visibility after screenshot snapshot."""
         if self._is_overlay_visible:
+            self.clearMask()
             self.show()
             self.raise_()
             open_list = self.config_manager.get("ui.open_widgets", [])

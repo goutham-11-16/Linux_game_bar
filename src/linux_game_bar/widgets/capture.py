@@ -234,21 +234,6 @@ class CaptureWidget(WidgetBase):
 
         vbox_act.addLayout(row_btns)
 
-        # Clean Background capture mode toggle
-        self.chk_clean_bg = QCheckBox("Hide Game Bar while capturing")
-        self.chk_clean_bg.setToolTip("When checked, Game Bar temporarily hides so only the background game is captured. Uncheck for instant silent capture without closing the Game Bar.")
-        self.chk_clean_bg.setStyleSheet("""
-            QCheckBox {
-                font-size: 11px;
-                color: #A0A0A5;
-                background: transparent;
-                spacing: 6px;
-            }
-        """)
-        self.chk_clean_bg.setChecked(self.config_manager.get("capture.clean_background_capture", True))
-        self.chk_clean_bg.toggled.connect(self._on_clean_bg_toggled)
-        vbox_act.addWidget(self.chk_clean_bg)
-
         # Recording Status Row
         self.rec_status_bar = QWidget()
         self.rec_status_bar.setVisible(False)
@@ -551,41 +536,37 @@ class CaptureWidget(WidgetBase):
         if path_str:
             self._select_screenshot(path_str)
 
-    def _on_clean_bg_toggled(self, checked: bool) -> None:
-        self.config_manager.set("capture.clean_background_capture", checked)
-
     def _take_screenshot(self) -> None:
         self.btn_capture.setEnabled(False)
 
-        clean_mode = self.config_manager.get("capture.clean_background_capture", True)
-
         top_win = self.window()
-        was_visible = clean_mode and top_win and top_win.isVisible()
+        parent_candidate = self
+        while parent_candidate.parentWidget():
+            parent_candidate = parent_candidate.parentWidget()
+        target_win = top_win if hasattr(top_win, "hide_for_capture") else parent_candidate
+
+        was_visible = bool(target_win and target_win.isVisible())
 
         def do_hide() -> None:
             if was_visible:
-                if hasattr(top_win, "hide_for_capture"):
-                    top_win.hide_for_capture()
+                if hasattr(target_win, "hide_for_capture"):
+                    target_win.hide_for_capture()
                 else:
-                    top_win.hide()
+                    target_win.hide()
                     QApplication.processEvents()
 
         def do_restore() -> None:
             if was_visible:
-                if hasattr(top_win, "restore_after_capture"):
-                    top_win.restore_after_capture()
+                if hasattr(target_win, "restore_after_capture"):
+                    target_win.restore_after_capture()
                 else:
-                    top_win.show()
-                    top_win.raise_()
+                    target_win.show()
+                    target_win.raise_()
                 self.raise_()
                 self.activateWindow()
                 QApplication.processEvents()
 
-        if clean_mode:
-            self.lbl_status.setText("Capturing clean background screenshot...")
-        else:
-            self.lbl_status.setText("Capturing screenshot...")
-
+        self.lbl_status.setText("Capturing clean background screenshot...")
         before_time = time.time() - 1.0
 
         try:
@@ -616,10 +597,7 @@ class CaptureWidget(WidgetBase):
             self._refresh_gallery()
             self._select_screenshot(path_str)
             self._copy_image_data()
-            if clean_mode:
-                self.lbl_status.setText(f"✓ Background captured & copied to clipboard: {new_file.name}")
-            else:
-                self.lbl_status.setText(f"✓ Screenshot captured & copied to clipboard: {new_file.name}")
+            self.lbl_status.setText(f"✓ Screenshot captured & copied to clipboard: {new_file.name}")
         else:
             self.lbl_status.setText("Screenshot completed.")
             self._refresh_gallery()

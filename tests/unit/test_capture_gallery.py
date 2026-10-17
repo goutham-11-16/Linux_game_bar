@@ -123,21 +123,21 @@ def test_take_screenshot_hides_overlay_during_capture(qapp, tmp_path: Path):
     assert parent.isVisible() is True
     assert widget.active_screenshot_path == str(captured_img)
 
-    # 2. Test non-clean mode: window stays open smoothly without callbacks
-    widget.config_manager.set("capture.clean_background_capture", False)
-    was_hidden_seamless = False
+    # 2. Test capture when game bar is already closed/hidden (e.g. background hotkey)
+    parent.hide()
+    was_hidden_closed = False
 
-    def mock_capture_seamless(*args, **kwargs):
+    def mock_capture_closed(*args, **kwargs):
         assert kwargs.get("before_snap") is None
         assert kwargs.get("after_snap") is None
-        nonlocal was_hidden_seamless
-        was_hidden_seamless = not parent.isVisible()
+        nonlocal was_hidden_closed
+        was_hidden_closed = parent.isVisible()
         return True, str(captured_img)
 
-    widget.service.take_screenshot = MagicMock(side_effect=mock_capture_seamless)
+    widget.service.take_screenshot = MagicMock(side_effect=mock_capture_closed)
     widget._take_screenshot()
 
-    assert was_hidden_seamless is False
-    assert parent.isVisible() is True
+    assert was_hidden_closed is False
+    assert parent.isVisible() is False
 
 
