@@ -348,16 +348,23 @@ class OverlayWindow(QWidget):
         return False
 
     def eventFilter(self, watched, event) -> bool:
-        """Globally intercept Escape to dismiss overlay from any child widget."""
+        """Globally intercept Escape to pause autotyper if active, or dismiss overlay."""
         if self._is_overlay_visible and event.type() == QEvent.KeyPress:
             if event.key() == Qt.Key_Escape:
+                if hasattr(self, "widget_autotyper") and self.widget_autotyper and self.widget_autotyper.is_typing_active():
+                    self.widget_autotyper.handle_esc_toggle()
+                    return True
                 self.hide_overlay()
                 return True
         return super().eventFilter(watched, event)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
-        # Dismiss overlay on Escape
+        # Toggle pause on autotyper if active, otherwise dismiss overlay on Escape
         if event.key() == Qt.Key_Escape:
+            if hasattr(self, "widget_autotyper") and self.widget_autotyper and self.widget_autotyper.is_typing_active():
+                self.widget_autotyper.handle_esc_toggle()
+                event.accept()
+                return
             self.hide_overlay()
             event.accept()
             return

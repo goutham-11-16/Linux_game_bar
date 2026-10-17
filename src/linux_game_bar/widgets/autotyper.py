@@ -45,11 +45,13 @@ class AutoTyperWidget(WidgetBase):
     """
 
     trigger_hotkey_signal = Signal(object)
+    esc_pressed_signal = Signal()
 
     def __init__(self, config_manager=None, parent: Optional[QWidget] = None):
         super().__init__("autotyper", "AUTO TYPER", "keyboard", parent)
         self.config_manager = config_manager
         self.trigger_hotkey_signal.connect(self._trigger_snippet_by_hotkey)
+        self.esc_pressed_signal.connect(self._handle_esc_pressed)
         self.setMinimumSize(400, 520)
         self.resize(410, 560)
 
@@ -62,6 +64,7 @@ class AutoTyperWidget(WidgetBase):
         self.snippets: List[Snippet] = []
         self.current_snippet: Optional[Snippet] = None
         self._worker: Optional[AutoTyperWorker] = None
+        self._active_running_snippet_id: Optional[str] = None
 
         self._build_ui()
         self._load_snippets()
@@ -493,10 +496,33 @@ class AutoTyperWidget(WidgetBase):
 
             hotkey_svc.register(snippet.hotkey, make_trigger)
 
+        if self.is_typing_active():
+            hotkey_svc.register("esc", self._on_esc_hotkey_pressed)
+
     def _trigger_snippet_by_hotkey(self, snippet: Snippet) -> None:
-        """Executed when global hotkey fires anywhere in Linux OS."""
+        """Executed when global hotkey fires anywhere in Linux OS.
+        If already typing this snippet, stops typing (toggle off).
+        If idle, starts typing (toggle on).
+        """
         if self._worker and self._worker.isRunning():
-            return
+            # If same snippet (or any active session) is triggered again, stop it
+            if self._active_running_snippet_id == snippet.id or self._active_running_snippet_id is not None:
+                logger.info(f"[AutoTyperWidget] Stopping snippet '{snippet.name}' via hotkey toggle.")
+                self._stop_typing()
+                self.status_lbl.setText("Stopped")
+                self.lbl_progress_desc.setText(f"Stopped typing '{snippet.name}' (hotkey toggled off).")
+                return
+
+        # Start typing this snippet
+        self._active_running_snippet_id = snippet.id
+        self.session_controls.setVisible(True)
+        self.btn_pause.setText("Pause")
+        self.progress_bar.setValue(0)
+        self.status_lbl.setText("Typing")
+
+        # Register global ESC key for pause/continue while typing
+        hotkey_svc = get_hotkey_service()
+        hotkey_svc.register("esc", self._on_esc_hotkey_pressed)
 
         self._worker = AutoTyperWorker(
             text=snippet.text,
@@ -626,9 +652,15 @@ class AutoTyperWidget(WidgetBase):
             self._worker.cancel()
             self._worker.wait()
 
+        self._active_running_snippet_id = self.current_snippet.id if self.current_snippet else "custom"
         self.session_controls.setVisible(True)
         self.btn_pause.setText("Pause")
         self.progress_bar.setValue(0)
+        self.status_lbl.setText("Starting")
+
+        # Register global ESC key for pause/continue while typing
+        hotkey_svc = get_hotkey_service()
+        hotkey_svc.register("esc", self._on_esc_hotkey_pressed)
 
         # 3 seconds countdown to give user time to focus target window or game
         self._worker = AutoTyperWorker(
@@ -645,24 +677,64 @@ class AutoTyperWidget(WidgetBase):
         self._worker.finished_operation.connect(self._on_worker_finished)
         self._worker.start()
 
-    def _toggle_pause(self) -> None:
-        if self._worker:
+    def _toggle_pause(self) -> bool:
+        if self._worker and self._worker.isRunning():
             is_paused = self._worker.toggle_pause()
             self.btn_pause.setText("Resume" if is_paused else "Pause")
+            if is_paused:
+                self.status_lbl.setText("Paused")
+                self.lbl_progress_desc.setText("Paused (Press Esc to continue typing)")
+            else:
+                self.status_lbl.setText("Typing")
+                self.lbl_progress_desc.setText("Continuing typing...")
+            return is_paused
+        return False
 
     def _stop_typing(self) -> None:
+        self._active_running_snippet_id = None
+        hotkey_svc = get_hotkey_service()
+        hotkey_svc.unregister("esc")
+
         if self._worker:
             self._worker.cancel()
-            self.session_controls.setVisible(False)
-            self.lbl_progress_desc.setText("Typing cancelled.")
+            self._worker.wait(1000)
+        self.session_controls.setVisible(False)
+        self.status_lbl.setText("Stopped")
+        self.lbl_progress_desc.setText("Typing cancelled.")
 
     def _on_progress(self, current: int, total: int) -> None:
         if total > 0:
             pct = int((current / total) * 100)
             self.progress_bar.setValue(pct)
-            self.status_lbl.setText(f"{pct}%")
+            if self._worker and getattr(self._worker, "_is_paused", False):
+                self.status_lbl.setText(f"{pct}% (Paused)")
+            else:
+                self.status_lbl.setText(f"{pct}%")
 
     def _on_worker_finished(self, success: bool, message: str) -> None:
+        self._active_running_snippet_id = None
+        hotkey_svc = get_hotkey_service()
+        hotkey_svc.unregister("esc")
+
         self.session_controls.setVisible(False)
         self.status_lbl.setText("Ready")
         self.lbl_progress_desc.setText(message)
+
+    def _on_esc_hotkey_pressed(self) -> None:
+        """Callback from GlobalHotKeyService on evdev background thread."""
+        logger.info("[AutoTyperWidget] Global Esc key pressed -> toggling pause/continue")
+        self.esc_pressed_signal.emit()
+
+    def _handle_esc_pressed(self) -> None:
+        """Executed on Qt GUI thread when Esc is pressed."""
+        if not self.is_typing_active():
+            return
+        self._toggle_pause()
+
+    def is_typing_active(self) -> bool:
+        """Return True if an auto-typing session is currently running or paused."""
+        return bool(self._worker and self._worker.isRunning())
+
+    def handle_esc_toggle(self) -> None:
+        """Called when Esc is pressed within the UI overlay."""
+        self._handle_esc_pressed()

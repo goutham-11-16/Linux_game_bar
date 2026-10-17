@@ -192,6 +192,9 @@ class AutoTyperWorker(QThread):
                     if self._is_cancelled:
                         self.finished_operation.emit(False, "Cancelled during countdown.")
                         return
+                    if not self._wait_if_paused():
+                        self.finished_operation.emit(False, "Cancelled during countdown.")
+                        return
                     self.status_changed.emit(f"Starting in {sec}s... focus target window!")
                     self.msleep(1000)
 

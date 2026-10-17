@@ -94,7 +94,9 @@ class GlobalHotKeyService:
             else:
                 if p.startswith("key_"):
                     p = p[4:]
-                if p in ascii_shift_digits:
+                if p in ("escape", "esc"):
+                    keys.append("esc")
+                elif p in ascii_shift_digits:
                     keys.append(ascii_shift_digits[p])
                 elif p.startswith("d") and len(p) == 2 and p[1].isdigit():
                     keys.append(p[1])

@@ -133,3 +133,53 @@ def test_hotkey_service_normalization():
     assert GlobalHotKeyService.normalize_hotkey("Control, Shift + D1") == "ctrl+shift+1"
     assert GlobalHotKeyService.normalize_hotkey("Control, Shift + Key_33") == "ctrl+shift+1"
     assert GlobalHotKeyService.normalize_hotkey("Ctrl + Shift + 1") == "ctrl+shift+1"
+    assert GlobalHotKeyService.normalize_hotkey("esc") == "esc"
+    assert GlobalHotKeyService.normalize_hotkey("Escape") == "esc"
+
+
+def test_autotyper_hotkey_toggle_start_stop(qapp, tmp_path):
+    widget = AutoTyperWidget(config_manager=None)
+    widget.show()
+    widget._storage_path = tmp_path / "snippets.json"
+
+    snip = Snippet(id="s1", name="Toggle Test", text="Hello world", hotkey="F8")
+    widget.snippets = [snip]
+
+    # 1. First trigger starts typing
+    widget._trigger_snippet_by_hotkey(snip)
+    assert widget.is_typing_active() is True
+    assert widget._active_running_snippet_id == "s1"
+    assert not widget.session_controls.isHidden()
+
+    # 2. Second trigger with same snippet stops typing
+    widget._trigger_snippet_by_hotkey(snip)
+    assert widget._active_running_snippet_id is None
+    assert widget.status_lbl.text() == "Stopped"
+    assert "Stopped typing" in widget.lbl_progress_desc.text()
+    assert widget.is_typing_active() is False
+
+
+def test_autotyper_esc_pause_and_continue(qapp, tmp_path):
+    widget = AutoTyperWidget(config_manager=None)
+    widget.show()
+    widget._storage_path = tmp_path / "snippets.json"
+
+    snip = Snippet(id="s2", name="Pause Test", text="Pause and continue text", hotkey="F9")
+    widget._trigger_snippet_by_hotkey(snip)
+    assert widget.is_typing_active() is True
+
+    # 1. First Esc pauses
+    widget.handle_esc_toggle()
+    assert widget._worker._is_paused is True
+    assert widget.btn_pause.text() == "Resume"
+    assert widget.status_lbl.text() == "Paused"
+
+    # 2. Second Esc continues
+    widget.handle_esc_toggle()
+    assert widget._worker._is_paused is False
+    assert widget.btn_pause.text() == "Pause"
+    assert widget.status_lbl.text() == "Typing"
+
+    widget._stop_typing()
+    assert widget.is_typing_active() is False
+
