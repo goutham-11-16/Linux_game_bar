@@ -555,7 +555,12 @@ class CaptureWidget(WidgetBase):
                     target_win.hide()
                     QApplication.processEvents()
 
+        restored = False
         def do_restore() -> None:
+            nonlocal restored
+            if restored:
+                return
+            restored = True
             if was_visible:
                 if hasattr(target_win, "restore_after_capture"):
                     target_win.restore_after_capture()
@@ -563,7 +568,6 @@ class CaptureWidget(WidgetBase):
                     target_win.show()
                     target_win.raise_()
                 self.raise_()
-                self.activateWindow()
                 QApplication.processEvents()
 
         self.lbl_status.setText("Capturing clean background screenshot...")

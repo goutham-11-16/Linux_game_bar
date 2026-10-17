@@ -101,6 +101,7 @@ def on_signal(connection, sender_name, object_path, interface_name, signal_name,
         uri = results['uri']
         parsed = urllib.parse.urlparse(uri)
         saved_path = urllib.parse.unquote(parsed.path)
+    print('CAPTURED', flush=True)
     loop.quit()
 
 conn.signal_subscribe(
@@ -137,9 +138,6 @@ try:
     )
 except Exception:
     pass
-
-# Mutter captures the screen synchronously during call_sync
-print('CAPTURED', flush=True)
 
 GLib.timeout_add_seconds(6, loop.quit)
 loop.run()
