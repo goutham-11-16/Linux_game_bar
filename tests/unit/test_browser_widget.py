@@ -84,3 +84,134 @@ def test_browser_feature_permission(qapp, tmp_path):
     # Emit permission request
     widget.web_page._on_feature_permission_requested(url, QWebEnginePage.Feature.ClipboardReadWrite)
 
+
+def test_browser_home_navigation(qapp, tmp_path):
+    from linux_game_bar.widgets.browser import HAS_WEBENGINE
+    if not HAS_WEBENGINE:
+        pytest.skip("QtWebEngine not available")
+
+    cfg_file = tmp_path / "test_config.json"
+    cfg = ConfigManager(config_path=cfg_file)
+    cfg.set("browser.start_url", "https://example.com/home")
+    widget = BrowserWidget(cfg)
+
+    assert widget.web_view.url().toString() == "https://example.com/home"
+
+    # Navigate elsewhere, then press home
+    widget._navigate_to_url("https://example.com/other")
+    assert widget.web_view.url().toString() == "https://example.com/other"
+    widget.go_home()
+    assert widget.web_view.url().toString() == "https://example.com/home"
+
+
+def test_browser_audio_mute_toggle(qapp, tmp_path):
+    from linux_game_bar.widgets.browser import HAS_WEBENGINE
+    if not HAS_WEBENGINE:
+        pytest.skip("QtWebEngine not available")
+
+    cfg_file = tmp_path / "test_config.json"
+    cfg = ConfigManager(config_path=cfg_file)
+    widget = BrowserWidget(cfg)
+
+    # Initial state should not be muted
+    assert widget.is_audio_muted() is False
+
+    # Toggle mute on
+    widget.toggle_audio_mute()
+    assert widget.is_audio_muted() is True
+    assert "Unmute" in widget.btn_audio_mute.toolTip()
+
+    # Toggle mute off
+    widget.toggle_audio_mute()
+    assert widget.is_audio_muted() is False
+    assert "Mute" in widget.btn_audio_mute.toolTip()
+
+
+def test_browser_zoom_controls(qapp, tmp_path):
+    from linux_game_bar.widgets.browser import HAS_WEBENGINE
+    if not HAS_WEBENGINE:
+        pytest.skip("QtWebEngine not available")
+
+    cfg_file = tmp_path / "test_config.json"
+    cfg = ConfigManager(config_path=cfg_file)
+    widget = BrowserWidget(cfg)
+
+    assert widget.zoom_factor == 1.0
+    assert widget.web_view.zoomFactor() == 1.0
+    assert widget.lbl_zoom.text() == "100%"
+
+    # Zoom in
+    widget.zoom_in()
+    assert round(widget.zoom_factor, 1) == 1.1
+    assert widget.lbl_zoom.text() == "110%"
+
+    # Zoom out
+    widget.zoom_out()
+    assert round(widget.zoom_factor, 1) == 1.0
+    assert widget.lbl_zoom.text() == "100%"
+
+    # Reset zoom
+    widget.set_zoom(1.5)
+    assert widget.zoom_factor == 1.5
+    widget.reset_zoom()
+    assert widget.zoom_factor == 1.0
+
+
+def test_browser_in_page_search(qapp, tmp_path):
+    from linux_game_bar.widgets.browser import HAS_WEBENGINE
+    if not HAS_WEBENGINE:
+        pytest.skip("QtWebEngine not available")
+
+    cfg_file = tmp_path / "test_config.json"
+    cfg = ConfigManager(config_path=cfg_file)
+    widget = BrowserWidget(cfg)
+
+    assert widget.search_frame.isHidden() is True
+
+    # Show search
+    widget.show_search()
+    assert widget.search_frame.isHidden() is False
+
+    # Toggle search hides
+    widget.toggle_search()
+    assert widget.search_frame.isHidden() is True
+
+    # Show again, set query and perform forward search
+    widget.show_search()
+    assert widget.search_frame.isHidden() is False
+    widget.search_input.setText("keyword")
+    widget._perform_search(forward=True)
+    widget._perform_search(forward=False)
+
+    # Hide search
+    widget.hide_search()
+    assert widget.search_frame.isHidden() is True
+
+
+def test_browser_bookmarks(qapp, tmp_path):
+    from linux_game_bar.widgets.browser import HAS_WEBENGINE, DEFAULT_BOOKMARKS
+    cfg_file = tmp_path / "test_config.json"
+    cfg = ConfigManager(config_path=cfg_file)
+    widget = BrowserWidget(cfg)
+
+    # Initial default bookmarks
+    bookmarks = widget.get_bookmarks()
+    assert len(bookmarks) == len(DEFAULT_BOOKMARKS)
+    assert any(b["name"] == "ChatGPT" for b in bookmarks)
+
+    # Bookmark current page
+    widget.url_bar.setText("https://customgameguide.com")
+    assert widget.is_bookmarked("https://customgameguide.com") is False
+
+    widget.toggle_bookmark_current_page()
+    assert widget.is_bookmarked("https://customgameguide.com") is True
+
+    # Check persistence in config
+    saved_bms = cfg.get("browser.bookmarks")
+    assert any(b["url"] == "https://customgameguide.com" for b in saved_bms)
+
+    # Toggle again should remove it
+    widget.toggle_bookmark_current_page()
+    assert widget.is_bookmarked("https://customgameguide.com") is False
+
+
