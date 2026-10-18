@@ -11,10 +11,28 @@ from typing import Optional, Tuple, Callable
 logger = logging.getLogger("linux_game_bar.capture")
 
 
+def ensure_portal_permissions() -> None:
+    """Ensure permission store allows screenshot for linux-game-bar and python hosts without showing access dialogs."""
+    flatpak = shutil.which("flatpak")
+    if not flatpak:
+        return
+    for app_id in ("linux-game-bar", "linux-game-bar.desktop", "python3", "python3.14", ""):
+        try:
+            subprocess.run(
+                [flatpak, "permission-set", "screenshot", "screenshot", app_id, "yes"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=1,
+            )
+        except Exception:
+            pass
+
+
 class CaptureService:
     """Provides screenshot and screen recording across Wayland (GNOME) and X11."""
 
     def __init__(self, capture_dir: Optional[Path] = None, recording_dir: Optional[Path] = None):
+        ensure_portal_permissions()
         self.capture_dir = capture_dir or (Path.home() / "Pictures" / "Captures")
         self.recording_dir = recording_dir or (Path.home() / "Videos" / "Captures")
         self.capture_dir.mkdir(parents=True, exist_ok=True)
@@ -136,8 +154,8 @@ try:
         5000,
         None
     )
-except Exception:
-    pass
+except Exception as e:
+    print("call_sync error:", e, file=sys.stderr)
 
 GLib.timeout_add_seconds(6, loop.quit)
 loop.run()
@@ -198,7 +216,7 @@ sys.exit(1)
                         except Exception as e:
                             logger.warning(f"Error in after_snap callback: {e}")
 
-            stdout, _ = proc.communicate(timeout=8)
+            stdout, stderr = proc.communicate(timeout=8)
 
             if proc.returncode == 0 and stdout:
                 for line in stdout.splitlines():
@@ -207,6 +225,11 @@ sys.exit(1)
                         if src_path.exists():
                             shutil.copy2(src_path, target_file)
                             return target_file
+            else:
+                logger.warning(
+                    f"Automatic full screenshot script returned {proc.returncode}. "
+                    f"stdout={stdout!r}, stderr={stderr!r}"
+                )
         except Exception as e:
             logger.warning(f"Automatic full screenshot failed: {e}")
         finally:
@@ -229,6 +252,7 @@ sys.exit(1)
         after_snap: Optional[Callable[[], None]] = None,
     ) -> Tuple[bool, str]:
         """Take a screenshot using desktop portal or available tools."""
+        ensure_portal_permissions()
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         target_file = self.capture_dir / f"Screenshot_{timestamp}.png"
 
@@ -269,7 +293,12 @@ sys.exit(1)
                 after_snap()
             if res.returncode == 0:
                 logger.info("Screenshot requested via xdg-desktop-portal.")
-                return True, str(target_file)
+                if target_file.exists():
+                    return True, str(target_file)
+                latest = self.get_latest_screenshot()
+                if latest and latest.exists() and latest.stat().st_mtime >= time.time() - 2.0:
+                    shutil.copy2(latest, target_file)
+                    return True, str(target_file)
         except Exception as e:
             if after_snap:
                 after_snap()

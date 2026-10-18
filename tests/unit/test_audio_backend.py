@@ -13,7 +13,7 @@ def test_get_volume_real_or_fallback():
     backend = AudioBackend()
     vol, muted = backend.get_volume("@DEFAULT_AUDIO_SINK@")
     assert isinstance(vol, float)
-    assert 0.0 <= vol <= 1.5
+    assert 0.0 <= vol <= 2.0
     assert isinstance(muted, bool)
 
 

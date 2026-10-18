@@ -598,12 +598,15 @@ class CaptureWidget(WidgetBase):
             return
 
         new_file = None
-        for _ in range(12):
-            latest = self.service.get_latest_screenshot()
-            if latest and latest.exists() and latest.stat().st_mtime >= before_time:
-                new_file = latest
-                break
-            time.sleep(0.25)
+        if path_or_msg and os.path.exists(path_or_msg):
+            new_file = Path(path_or_msg)
+        else:
+            for _ in range(12):
+                latest = self.service.get_latest_screenshot()
+                if latest and latest.exists() and latest.stat().st_mtime >= before_time:
+                    new_file = latest
+                    break
+                time.sleep(0.25)
 
         if new_file and new_file.exists():
             path_str = str(new_file)
@@ -612,7 +615,7 @@ class CaptureWidget(WidgetBase):
             self._copy_image_data()
             self.lbl_status.setText(f"✓ Screenshot captured & copied to clipboard: {new_file.name}")
         else:
-            self.lbl_status.setText("Screenshot completed.")
+            self.lbl_status.setText("Capture failed: No screenshot file generated.")
             self._refresh_gallery()
 
     def _copy_image_data(self) -> None:
