@@ -8,11 +8,14 @@ import os
 import re
 import shutil
 import logging
+import urllib.parse
 from pathlib import Path
 from typing import Optional
 
 from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QClipboard
 from PySide6.QtWidgets import (
+    QApplication,
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
@@ -33,10 +36,63 @@ logger = logging.getLogger("linux_game_bar.browser")
 # Check QtWebEngine availability
 try:
     from PySide6.QtWebEngineWidgets import QWebEngineView
-    from PySide6.QtWebEngineCore import QWebEngineProfile, QWebEnginePage
+    from PySide6.QtWebEngineCore import (
+        QWebEngineProfile,
+        QWebEnginePage,
+        QWebEngineScript,
+        QWebEngineSettings,
+    )
     HAS_WEBENGINE = True
 except ImportError:
     HAS_WEBENGINE = False
+
+
+if HAS_WEBENGINE:
+    class BrowserWebPage(QWebEnginePage):
+        """Custom QWebEnginePage with enhanced clipboard bridge and security permissions."""
+
+        def __init__(self, profile: QWebEngineProfile, parent=None):
+            super().__init__(profile, parent)
+            if hasattr(self, "permissionRequested"):
+                self.permissionRequested.connect(self._on_permission_requested)
+            if hasattr(self, "featurePermissionRequested"):
+                self.featurePermissionRequested.connect(self._on_feature_permission_requested)
+
+        def _on_permission_requested(self, permission) -> None:
+            logger.info(f"Browser permission granted: {permission.permissionType()} for {permission.origin().toString()}")
+            try:
+                permission.grant()
+            except Exception as e:
+                logger.warning(f"Error granting browser permission: {e}")
+
+        def _on_feature_permission_requested(self, security_origin: QUrl, feature: QWebEnginePage.Feature) -> None:
+            logger.info(f"Browser feature permission granted for {security_origin.toString()}: {feature}")
+            try:
+                self.setFeaturePermission(
+                    security_origin,
+                    feature,
+                    QWebEnginePage.PermissionPolicy.PermissionGrantedByUser,
+                )
+            except Exception as e:
+                logger.warning(f"Error granting feature permission: {e}")
+
+        def javaScriptConsoleMessage(self, level, message, line_number, source_id):
+            if message.startswith("__GAMEBAR_CLIPBOARD__:"):
+                payload = message.split(":", 1)[1]
+                try:
+                    text = urllib.parse.unquote(payload)
+                    clipboard = QApplication.clipboard()
+                    if clipboard:
+                        clipboard.setText(text, QClipboard.Mode.Clipboard)
+                        clipboard.setText(text, QClipboard.Mode.Selection)
+                    logger.info(f"Browser clipboard bridge captured {len(text)} chars to system clipboard.")
+                except Exception as e:
+                    logger.warning(f"Failed to decode browser clipboard payload: {e}")
+                return
+            super().javaScriptConsoleMessage(level, message, line_number, source_id)
+else:
+    class BrowserWebPage:
+        pass
 
 
 class BrowserWidget(WidgetBase):
@@ -181,8 +237,26 @@ class BrowserWidget(WidgetBase):
             self._profile.setCachePath(str(profile_dir / "cache"))
             self._profile.setPersistentCookiesPolicy(QWebEngineProfile.PersistentCookiesPolicy.ForcePersistentCookies)
 
-            self.web_page = QWebEnginePage(self._profile, self.web_view)
+            # Web Settings for Profile
+            prof_settings = self._profile.settings()
+            prof_settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanAccessClipboard, True)
+            prof_settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanPaste, True)
+            prof_settings.setAttribute(QWebEngineSettings.WebAttribute.LocalStorageEnabled, True)
+            prof_settings.setAttribute(QWebEngineSettings.WebAttribute.ScrollAnimatorEnabled, True)
+            prof_settings.setAttribute(QWebEngineSettings.WebAttribute.FullScreenSupportEnabled, True)
+            prof_settings.setAttribute(QWebEngineSettings.WebAttribute.WebGLEnabled, True)
+
+            # Install universal clipboard bridge script into profile
+            self._install_clipboard_bridge(self._profile)
+
+            self.web_page = BrowserWebPage(self._profile, self.web_view)
             self.web_view.setPage(self.web_page)
+
+            page_settings = self.web_page.settings()
+            page_settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanAccessClipboard, True)
+            page_settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanPaste, True)
+            page_settings.setAttribute(QWebEngineSettings.WebAttribute.LocalStorageEnabled, True)
+            page_settings.setAttribute(QWebEngineSettings.WebAttribute.FullScreenSupportEnabled, True)
 
             # Wire navigation actions
             self.btn_back.clicked.connect(self.web_view.back)
@@ -288,3 +362,105 @@ class BrowserWidget(WidgetBase):
         else:
             import webbrowser
             webbrowser.open(target_url)
+
+    @staticmethod
+    def _install_clipboard_bridge(profile: QWebEngineProfile) -> None:
+        """Inject universal clipboard bridge into profile to handle modern web clipboard API (e.g. ChatGPT, Claude, GitHub)."""
+        if not HAS_WEBENGINE:
+            return
+        # Avoid duplicate injection
+        if profile.scripts().find("gamebar_clipboard_bridge"):
+            return
+
+        js_bridge = """
+(function() {
+    function sendToHost(text) {
+        if (typeof text === "string" && text.length > 0) {
+            console.log("__GAMEBAR_CLIPBOARD__:" + encodeURIComponent(text));
+        }
+    }
+
+    function hookClipboard(target) {
+        if (!target) return;
+        try {
+            Object.defineProperty(target, "writeText", {
+                value: function(text) {
+                    sendToHost(text);
+                    return Promise.resolve();
+                },
+                writable: true,
+                configurable: true
+            });
+
+            Object.defineProperty(target, "write", {
+                value: async function(items) {
+                    try {
+                        for (const item of items) {
+                            if (item.types && item.types.includes("text/plain")) {
+                                const blob = await item.getType("text/plain");
+                                const text = await blob.text();
+                                sendToHost(text);
+                            }
+                        }
+                    } catch (e) {}
+                    return Promise.resolve();
+                },
+                writable: true,
+                configurable: true
+            });
+        } catch (e) {}
+    }
+
+    if (navigator.clipboard) {
+        hookClipboard(navigator.clipboard);
+    } else {
+        const dummyClipboard = {};
+        hookClipboard(dummyClipboard);
+        try {
+            Object.defineProperty(navigator, "clipboard", {
+                value: dummyClipboard,
+                writable: true,
+                configurable: true
+            });
+        } catch (e) {}
+    }
+
+    // Permissions API query hook so navigator.permissions.query({name: 'clipboard-write'}) succeeds
+    if (navigator.permissions && navigator.permissions.query) {
+        const origQuery = navigator.permissions.query.bind(navigator.permissions);
+        navigator.permissions.query = function(param) {
+            if (param && (param.name === "clipboard-write" || param.name === "clipboard-read")) {
+                return Promise.resolve({ state: "granted", onchange: null });
+            }
+            return origQuery(param);
+        };
+    }
+
+    // DataTransfer.prototype.setData hook
+    if (typeof DataTransfer !== "undefined" && DataTransfer.prototype) {
+        const origSetData = DataTransfer.prototype.setData;
+        DataTransfer.prototype.setData = function(format, data) {
+            if (format === "text/plain" || format === "text") {
+                sendToHost(data);
+            }
+            return origSetData.apply(this, arguments);
+        };
+    }
+
+    // Document copy event listener fallback
+    document.addEventListener("copy", function(e) {
+        const sel = window.getSelection();
+        if (sel && sel.toString()) {
+            sendToHost(sel.toString());
+        }
+    }, true);
+})();
+"""
+        script = QWebEngineScript()
+        script.setName("gamebar_clipboard_bridge")
+        script.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentCreation)
+        script.setWorldId(QWebEngineScript.ScriptWorldId.MainWorld)
+        script.setRunsOnSubFrames(True)
+        script.setSourceCode(js_bridge)
+        profile.scripts().insert(script)
+
