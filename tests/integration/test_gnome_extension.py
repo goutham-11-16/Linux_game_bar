@@ -19,3 +19,8 @@ def test_gnome_extension_metadata():
     assert "shell-version" in data
     # Must support GNOME 45 through 51
     assert "50" in data["shell-version"]
+
+    schema_file = ext_dir / "schemas" / "org.gnome.shell.extensions.linux-game-bar.gschema.xml"
+    compiled_schema = ext_dir / "schemas" / "gschemas.compiled"
+    assert schema_file.exists()
+    assert compiled_schema.exists()

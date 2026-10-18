@@ -46,6 +46,8 @@ class OverlayWindow(QWidget):
     def _init_window(self) -> None:
         # Overlay window attributes
         # Qt.Tool prevents window manager taskbar and Alt-Tab interception while staying fully Wayland/Chromium compliant
+        self.setWindowTitle("Linux Game Bar")
+        self.setObjectName("linux-game-bar")
         self.setWindowFlags(
             Qt.Window
             | Qt.FramelessWindowHint

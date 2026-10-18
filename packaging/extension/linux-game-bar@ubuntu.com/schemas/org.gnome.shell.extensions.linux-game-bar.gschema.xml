@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="gnome-shell-extensions">
+  <schema id="org.gnome.shell.extensions.linux-game-bar" path="/org/gnome/shell/extensions/linux-game-bar/">
+    <key name="toggle-game-bar" type="as">
+      <default><![CDATA[['<Super>g']]]></default>
+      <summary>Toggle Linux Game Bar</summary>
+      <description>Compositor-level keybinding to toggle Linux Game Bar overlay</description>
+    </key>
+    <key name="take-screenshot" type="as">
+      <default><![CDATA[['<Super><Alt>Print']]]></default>
+      <summary>Take Game Bar Screenshot</summary>
+      <description>Compositor-level keybinding for silent screenshot capture</description>
+    </key>
+  </schema>
+</schemalist>
